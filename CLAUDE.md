@@ -4,13 +4,16 @@ This file provides guidance for AI assistants (Claude and others) working in thi
 
 ## Repository Status
 
-This repository is currently **empty** — no source code, dependencies, or configuration files have been committed yet. This CLAUDE.md serves as a foundational document to be updated as the project evolves.
+This repository contains **survival-expedition-resources**, a browser-based survival/expedition resource management game built with React, TypeScript, and Vite.
 
-When the project is initialized, update this file with:
-- The actual tech stack and framework versions
-- Project-specific build and test commands
-- Coding conventions and style guides
-- Architecture overview
+**Tech stack:**
+- React 18 + TypeScript 5
+- Vite 5 (dev server on port 8080)
+- Tailwind CSS 3 + shadcn/ui (Radix UI primitives)
+- TanStack Query v5
+- React Router v6
+- Supabase JS v2
+- Zod, React Hook Form
 
 ---
 
@@ -108,38 +111,59 @@ docs: update CLAUDE.md with build instructions
 
 ---
 
-## Project Setup (To Be Filled In)
+## Project Setup
 
-Once the project is initialized, document the following here:
+All commands run from `survival-expedition-resources/`:
 
 ```bash
 # Install dependencies
-<command>
+npm install
 
-# Start development server
-<command>
+# Start development server (http://localhost:8080)
+npm run dev
 
-# Run tests
-<command>
-
-# Run linter / formatter
-<command>
+# Run linter
+npm run lint
 
 # Build for production
-<command>
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
----
-
-## Architecture (To Be Filled In)
-
-Describe the high-level architecture here once the project is initialized:
-
-- **Entry points**: e.g., `src/main.ts`, `cmd/server/main.go`
-- **Key modules**: list the main packages/modules and their responsibilities
-- **Data flow**: describe how data moves through the system
-- **External dependencies**: databases, queues, third-party APIs
+No test runner is configured yet.
 
 ---
 
-*Last updated: 2026-02-25 — repository is empty; update this file when the project is initialized.*
+## Architecture
+
+**Project root:** `survival-expedition-resources/`
+
+- **Entry point:** `src/main.tsx` → `src/App.tsx`
+- **Routing:** React Router v6; two routes — `/` (`pages/Index.tsx`) and `*` (`pages/NotFound.tsx`)
+- **Path alias:** `@/` maps to `src/`
+
+**Directory structure:**
+
+```
+src/
+  components/
+    game/         # Game UI panels (Inventory, Crafting, Expedition, Survivors, etc.)
+    ui/           # shadcn/ui component library
+    AppLayout.tsx
+    theme-provider.tsx
+  contexts/       # React context providers
+  data/           # Static game data
+  hooks/          # Custom React hooks
+  lib/            # Utility helpers
+  pages/          # Route-level page components
+```
+
+**Key game components:** `ResourceBar`, `InventoryPanel`, `CraftingPanel`, `SurvivorRoster`, `SurvivorCard`, `ExpeditionLauncher`, `ActiveExpeditions`, `ExpeditionResults`, `ExpeditionTimer`, `BaseBuildings`, `GameLog`, `QuickStats`, `Header`, `TabNavigation`
+
+**External dependencies:** Supabase (backend/auth), TanStack Query (server state)
+
+---
+
+*Last updated: 2026-02-26 — survival-expedition-resources React/TS/Vite app initialized.*
