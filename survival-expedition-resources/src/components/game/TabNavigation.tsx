@@ -10,6 +10,7 @@ interface TabNavigationProps {
   onTabChange: (tab: GameTab) => void;
   activeExpeditions: number;
   completedExpeditions: number;
+  inactiveSurvivors: number;
 }
 
 const tabs = [
@@ -20,12 +21,17 @@ const tabs = [
   { id: 'tasks' as GameTab,       label: 'Tâches',      icon: <ClipboardList className="w-4 h-4" /> },
 ];
 
-const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange, activeExpeditions, completedExpeditions }) => {
+const TabNavigation: React.FC<TabNavigationProps> = ({
+  activeTab, onTabChange, activeExpeditions, completedExpeditions, inactiveSurvivors,
+}) => {
   return (
     <div className="flex gap-1 bg-zinc-900/60 border border-zinc-800 rounded-lg p-1">
       {tabs.map(tab => {
         const isActive = activeTab === tab.id;
-        const showBadge = tab.id === 'expeditions' && (activeExpeditions > 0 || completedExpeditions > 0);
+
+        const showExpeditionBadge = tab.id === 'expeditions' && (activeExpeditions > 0 || completedExpeditions > 0);
+        const showSurvivorBadge  = tab.id === 'survivors' && inactiveSurvivors > 0;
+
         return (
           <button
             key={tab.id}
@@ -38,13 +44,20 @@ const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange, a
           >
             {tab.icon}
             <span className="hidden sm:inline">{tab.label}</span>
-            {showBadge && (
+
+            {showExpeditionBadge && (
               <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 completedExpeditions > 0
                   ? 'bg-amber-500 text-black animate-pulse'
                   : 'bg-blue-600 text-white'
               }`}>
                 {completedExpeditions > 0 ? completedExpeditions : activeExpeditions}
+              </span>
+            )}
+
+            {showSurvivorBadge && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-zinc-600 text-zinc-200">
+                {inactiveSurvivors}
               </span>
             )}
           </button>

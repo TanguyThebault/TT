@@ -22,6 +22,7 @@ const AppLayout: React.FC = () => {
 
   const activeExpeditions    = state.expeditions.filter(e => !e.completed).length;
   const completedExpeditions = state.expeditions.filter(e => e.completed).length;
+  const inactiveSurvivors    = state.survivors.filter(s => s.status === 'available').length;
 
   /* ── Loading screen ──────────────────────────────────────────────────────── */
   if (!state.initialized) {
@@ -131,6 +132,7 @@ const AppLayout: React.FC = () => {
             onTabChange={setActiveTab}
             activeExpeditions={activeExpeditions}
             completedExpeditions={completedExpeditions}
+            inactiveSurvivors={inactiveSurvivors}
           />
 
           {/* Tab Content */}

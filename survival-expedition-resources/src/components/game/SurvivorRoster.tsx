@@ -9,9 +9,10 @@ const SurvivorRoster: React.FC = () => {
   const barracksLevel = state.buildings['barracks'] || 0;
   const maxSurvivors = getMaxSurvivors(barracksLevel);
 
-  const available = state.survivors.filter(s => s.status === 'available').length;
-  const onMission = state.survivors.filter(s => s.status === 'expedition').length;
-  const injured = state.survivors.filter(s => s.status === 'injured').length;
+  const available  = state.survivors.filter(s => s.status === 'available').length;
+  const onMission  = state.survivors.filter(s => s.status === 'expedition').length;
+  const onTask     = state.survivors.filter(s => s.status === 'recycling').length;
+  const injured    = state.survivors.filter(s => s.status === 'injured').length;
 
   return (
     <div className="space-y-3">
@@ -22,7 +23,8 @@ const SurvivorRoster: React.FC = () => {
         </h2>
         <div className="flex items-center gap-3 text-xs font-mono">
           <span className="text-green-400">{available} dispo</span>
-          <span className="text-blue-400">{onMission} en mission</span>
+          {onMission > 0 && <span className="text-blue-400">{onMission} en mission</span>}
+          {onTask > 0 && <span className="text-amber-500">{onTask} en tâche</span>}
           {injured > 0 && <span className="text-red-400">{injured} blessé(s)</span>}
           <span className="text-zinc-500">{state.survivors.length}/{maxSurvivors}</span>
         </div>

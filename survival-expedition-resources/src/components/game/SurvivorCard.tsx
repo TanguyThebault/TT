@@ -61,14 +61,16 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
   const healthPct = (survivor.health / survivor.maxHealth) * 100;
   const healthColor = healthPct > 60 ? 'bg-green-500' : healthPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
   const isOnExpedition = survivor.status === 'expedition';
-  const isInjured = survivor.status === 'injured';
+  const isInjured      = survivor.status === 'injured';
+  const isRecycling    = survivor.status === 'recycling';
+  const isBusy         = isOnExpedition || isRecycling;
 
   const availableItems = equipSlot
     ? state.inventory.filter(item => item.slot === equipSlot)
     : [];
 
   const healCost = Math.ceil((survivor.maxHealth - survivor.health) * 0.2);
-  const canHeal = survivor.health < survivor.maxHealth && !isOnExpedition && (state.resources['medicine'] || 0) >= healCost;
+  const canHeal = survivor.health < survivor.maxHealth && !isBusy && (state.resources['medicine'] || 0) >= healCost;
 
   const getEffectiveSkill = (skill: keyof Survivor['skills']) => {
     let total = survivor.skills[skill];
@@ -85,15 +87,16 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
 
   return (
     <div className={`bg-zinc-900/60 border rounded-lg transition-all duration-200 ${
-      selected ? 'border-amber-500 shadow-lg shadow-amber-900/20' :
-      isOnExpedition ? 'border-blue-600/40 opacity-70' :
-      isInjured ? 'border-red-600/40' :
+      selected          ? 'border-amber-500 shadow-lg shadow-amber-900/20' :
+      isOnExpedition    ? 'border-blue-600/40 opacity-70' :
+      isRecycling       ? 'border-amber-700/40 opacity-70' :
+      isInjured         ? 'border-red-600/40' :
       'border-zinc-700/50 hover:border-zinc-600'
     }`}>
       <div
-        className={`p-3 flex items-center gap-3 ${selectable && !isOnExpedition ? 'cursor-pointer' : ''}`}
+        className={`p-3 flex items-center gap-3 ${selectable && !isBusy ? 'cursor-pointer' : ''}`}
         onClick={() => {
-          if (selectable && !isOnExpedition && !isInjured && onToggleSelect) {
+          if (selectable && !isBusy && !isInjured && onToggleSelect) {
             onToggleSelect();
           } else if (!selectable) {
             setExpanded(!expanded);
@@ -102,7 +105,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
       >
         {selectable && (
           <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-            isOnExpedition || isInjured
+            isBusy || isInjured
               ? 'border-zinc-700 bg-zinc-800'
               : selected
                 ? 'border-amber-500 bg-amber-500'
@@ -118,6 +121,11 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             {isOnExpedition && (
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-700/30">
                 EN MISSION
+              </span>
+            )}
+            {isRecycling && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-700/30">
+                EN TÂCHE
               </span>
             )}
             {isInjured && (
@@ -268,7 +276,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                       <span className="text-xs text-zinc-600 italic">Vide — {slotNames[slot]}</span>
                     )}
                   </div>
-                  {!isOnExpedition && (
+                  {!isBusy && (
                     <div className="flex gap-1">
                       {eq && (
                         <button
@@ -322,7 +330,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
           )}
 
           {/* Heal button */}
-          {survivor.health < survivor.maxHealth && !isOnExpedition && (
+          {survivor.health < survivor.maxHealth && !isBusy && (
             <button
               onClick={() => healSurvivor(survivor.id)}
               disabled={!canHeal}
