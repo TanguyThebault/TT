@@ -148,14 +148,14 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
       }
     }
   }
-  const dangerRoll = Math.random() * 5;
+  const dangerRoll = Math.random() * 3.5;
   if (dangerRoll < effectiveDanger) {
     const combatCheck = teamCombat / (survivors.length * 5);
     if (combatCheck < Math.random() * effectiveDanger) {
       events.push('L\'équipe a été attaquée par des pillards !');
       survivors.forEach(s => {
         const armorHP = s.equipment.armor?.stats.health || 0;
-        const baseDmg = randomInt(5, 20) * (effectiveDanger / 3);
+        const baseDmg = randomInt(20, 45) * (effectiveDanger / 2);
         survivorDamage[s.id] = Math.max(1, Math.floor(baseDmg - armorHP * 0.3));
       });
     } else {
@@ -226,7 +226,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         if (!exp.survivorIds.includes(s.id)) return s;
         const dmg = results.survivorDamage[s.id] || 0;
         const newHP = Math.max(1, s.health - dmg);
-        return { ...s, status: (newHP < 30 ? 'injured' : 'available') as Survivor['status'], health: newHP, expeditionId: undefined };
+        return { ...s, status: (newHP < 50 ? 'injured' : 'available') as Survivor['status'], health: newHP, expeditionId: undefined };
       });
       const storageLevel = state.buildings['storage'] || 0;
       const newRes = { ...state.resources };
@@ -345,7 +345,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const newSurvivors = state.survivors.map(s => {
           if (s.status === 'expedition' || s.health >= s.maxHealth) return s;
           const healed = Math.min(s.maxHealth, s.health + healRate);
-          return { ...s, health: healed, status: (healed >= 30 && s.status === 'injured' ? 'available' : s.status) as Survivor['status'] };
+          return { ...s, health: healed, status: (healed >= 50 && s.status === 'injured' ? 'available' : s.status) as Survivor['status'] };
         });
         return { ...state, survivors: newSurvivors };
       }
