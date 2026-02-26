@@ -166,8 +166,13 @@ const ExpeditionMap: React.FC = () => {
     ? (state.buildings[selectedZone.requiredBuildingLevel.buildingId] || 0) < selectedZone.requiredBuildingLevel.level
     : false;
 
+  const foodCost = selectedDur > 0 && selectedSurvivors.length > 0
+    ? Math.max(1, Math.ceil((selectedDur / 60) * selectedSurvivors.length))
+    : 0;
+  const hasEnoughFood = (state.resources['food'] || 0) >= foodCost;
+
   const handleLaunch = () => {
-    if (!selectedId || selectedSurvivors.length === 0) return;
+    if (!selectedId || selectedSurvivors.length === 0 || !hasEnoughFood) return;
     launchExpedition(selectedId, selectedSurvivors);
     setSelectedId(null);
     setSelectedSurvivors([]);
@@ -559,15 +564,20 @@ const ExpeditionMap: React.FC = () => {
 
           <button
             onClick={handleLaunch}
-            disabled={selectedSurvivors.length === 0}
+            disabled={selectedSurvivors.length === 0 || !hasEnoughFood}
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold font-mono uppercase tracking-wider transition-all ${
-              selectedSurvivors.length > 0
+              selectedSurvivors.length > 0 && hasEnoughFood
                 ? 'bg-amber-600 hover:bg-amber-500 text-black shadow-lg shadow-amber-900/30'
                 : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
             }`}
           >
             <Rocket className="w-4 h-4"/>
-            Lancer l'expédition ({formatTime(selectedDur)})
+            Lancer ({formatTime(selectedDur)})
+            {selectedSurvivors.length > 0 && (
+              <span className={`text-xs font-mono ml-1 ${hasEnoughFood ? 'opacity-70' : 'text-red-400 opacity-100'}`}>
+                — {foodCost} 🍎 {!hasEnoughFood && '(insuffisant)'}
+              </span>
+            )}
           </button>
         </div>
       )}

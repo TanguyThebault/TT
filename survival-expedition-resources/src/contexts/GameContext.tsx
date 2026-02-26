@@ -210,11 +210,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (!zone) return state;
       const garageLevel = state.buildings['garage'] || 0;
       const duration = Math.floor(zone.baseDuration * getExpeditionDurationMultiplier(garageLevel));
+      const foodCost = Math.max(1, Math.ceil((duration / 60) * action.survivorIds.length));
+      if ((state.resources['food'] || 0) < foodCost) return state;
       const expeditionId = uuidv4();
       const newSurvivors = state.survivors.map(s => action.survivorIds.includes(s.id) ? { ...s, status: 'expedition' as const, expeditionId } : s);
       const newExpedition: Expedition = { id: expeditionId, zoneId: action.zoneId, survivorIds: action.survivorIds, startTime: Date.now(), duration, completed: false };
-      return { ...state, survivors: newSurvivors, expeditions: [...state.expeditions, newExpedition],
-        gameLog: [{ id: uuidv4(), message: `Expédition lancée vers ${zone.name} (${Math.floor(duration / 60)}min ${duration % 60}s)`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)] };
+      const newRes = { ...state.resources, food: (state.resources['food'] || 0) - foodCost };
+      return { ...state, resources: newRes, survivors: newSurvivors, expeditions: [...state.expeditions, newExpedition],
+        gameLog: [{ id: uuidv4(), message: `Expédition lancée vers ${zone.name} — ${foodCost} nourriture consommée.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)] };
     }
     case 'COMPLETE_EXPEDITION': {
       const exp = state.expeditions.find(e => e.id === action.expeditionId);
