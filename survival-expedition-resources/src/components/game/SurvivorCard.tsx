@@ -70,89 +70,141 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
   const hairStyle = seededInt(seed + 13, 3);
   const isMale    = survivor.gender === 'male';
 
-  // Derived skin shadow for nose / mouth
-  const skinShade = skinTone === SKIN_TONES[2] ? '#5a3020' : '#9a6040';
+  const skinDark = skinTone === SKIN_TONES[2] ? '#4a2818' : '#8a5535';
+  const lipColor = skinTone === SKIN_TONES[2] ? '#6a3020' : '#9a5840';
 
   const frameColor    = healthPct > 60 ? '#3a2e1a' : healthPct > 30 ? '#6a2a10' : '#8a1010';
   const injuryOpacity = healthPct < 30 ? 0.38 : healthPct < 60 ? 0.20 : 0;
 
-  // Face geometry (viewBox 0 0 40 40)
-  const faceRx = isMale ? 10 : 9;
-  const faceCy = 17;
-  // Eye positions
-  const lx = isMale ? 14   : 14.5;  // left eye x
-  const rx = isMale ? 26   : 25.5;  // right eye x
-  const ey = faceCy - 1;             // eye y = 16
+  // ── Face geometry (viewBox 100×100) ───────────────────────────────────────
+  const frx = isMale ? 28 : 25;          // face half-width
+  const lx  = isMale ? 36 : 37;          // left  eye centre x
+  const ex  = isMale ? 64 : 63;          // right eye centre x
+  const ey  = 46;                         // eye centre y
+  const bry = ey - 7;                     // eyebrow y
+  const elx = 50 - frx - 3;              // left  ear centre x
+  const erx = 50 + frx + 3;              // right ear centre x
+  // Unique clip ids so multiple portraits don't share the same id
+  const cl = `scl${seed}`, cr = `scr${seed}`;
 
   return (
     <svg
-      viewBox="0 0 40 40"
-      className="w-10 h-10 flex-shrink-0 rounded"
+      viewBox="0 0 100 100"
+      className="w-20 h-20 flex-shrink-0 rounded"
       xmlns="http://www.w3.org/2000/svg"
       style={{ background: '#0e0b08' }}
     >
-      {/* Shoulders */}
+      <defs>
+        {/* Almond-shaped eyelid clip paths */}
+        <clipPath id={cl}>
+          <path d={`M${lx-7.5},${ey} Q${lx},${ey-6.5} ${lx+7.5},${ey} Q${lx+4},${ey+5} ${lx},${ey+5} Q${lx-4},${ey+5} ${lx-7.5},${ey}Z`} />
+        </clipPath>
+        <clipPath id={cr}>
+          <path d={`M${ex-7.5},${ey} Q${ex},${ey-6.5} ${ex+7.5},${ey} Q${ex+4},${ey+5} ${ex},${ey+5} Q${ex-4},${ey+5} ${ex-7.5},${ey}Z`} />
+        </clipPath>
+      </defs>
+
+      {/* ── Clothing / shoulders ── */}
       <path
-        d={isMale ? 'M0,40 L4,27 Q10,23 20,22 Q30,23 36,27 L40,40Z'
-                  : 'M2,40 L5,29 Q11,25 20,24 Q29,25 35,29 L38,40Z'}
-        fill="#181210"
+        d={isMale
+          ? 'M0,100 L6,72 Q18,62 50,59 Q82,62 94,72 L100,100Z'
+          : 'M5,100 L11,76 Q20,67 50,64 Q80,67 89,76 L95,100Z'}
+        fill="#181412"
       />
-      {/* Neck */}
-      <rect x="16.5" y="25" width="7" height="6" rx="1" fill={skinTone} />
-      {/* Face */}
-      <ellipse cx="20" cy={faceCy} rx={faceRx} ry="12" fill={skinTone} />
+
+      {/* ── Neck ── */}
+      <rect x="43" y="83" width="14" height="11" rx="2" fill={skinTone} />
+
+      {/* ── Ears (behind face oval) ── */}
+      <ellipse cx={elx} cy="52" rx="4.5" ry="7"   fill={skinTone} />
+      <ellipse cx={erx} cy="52" rx="4.5" ry="7"   fill={skinTone} />
+      <ellipse cx={elx + 1.5} cy="52" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
+      <ellipse cx={erx - 1.5} cy="52" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
+
+      {/* ── Face oval ── */}
+      <ellipse cx="50" cy="53" rx={frx} ry="33" fill={skinTone} />
 
       {/* ── Hair ── */}
-      {hairStyle === 0 && (isMale
-        ? <path d="M10,17 Q10,5 20,4 Q30,5 30,17 Q28,11 20,9 Q12,11 10,17Z" fill={hairColor} />
-        : <path d="M11,17 Q11,5 20,4 Q29,5 29,17 Q27,11 20,9 Q13,11 11,17Z" fill={hairColor} />
-      )}
-      {hairStyle === 1 && (isMale
-        ? <path d="M9,17 Q9,4 20,3 Q31,4 31,17 Q29,10 20,8 Q11,10 9,17Z" fill={hairColor} />
-        : <>
-            <path d="M11,17 Q10,4 20,3 Q30,4 29,17 Q27,10 20,8 Q13,10 11,17Z" fill={hairColor} />
-            <path d="M11,17 Q8,28 9,38 Q12,27 11,17Z M29,17 Q32,28 31,38 Q28,27 29,17Z" fill={hairColor} />
-          </>
-      )}
-      {hairStyle === 2 && (isMale
-        ? <path d="M10,17 Q9,3 20,2 Q31,3 30,17 Q30,9 22,7 Q14,7 10,17Z" fill={hairColor} />
-        : <path d="M11,17 Q10,3 20,2 Q30,3 29,17 Q29,9 21,7 Q13,7 11,17Z" fill={hairColor} />
-      )}
+      {isMale && hairStyle === 0 && <path d="M22,38 Q20,10 50,7 Q80,10 78,38 Q76,20 50,18 Q24,20 22,38Z" fill={hairColor} />}
+      {isMale && hairStyle === 1 && <path d="M21,40 Q19,8 50,5 Q81,8 79,40 Q77,20 50,18 Q23,20 21,40Z" fill={hairColor} />}
+      {isMale && hairStyle === 2 && <path d="M22,40 Q18,8 50,5 Q82,8 78,40 Q78,20 60,17 Q40,17 22,40Z" fill={hairColor} />}
+      {!isMale && hairStyle === 0 && <path d="M26,36 Q24,10 50,7 Q76,10 74,36 Q72,20 50,18 Q28,20 26,36Z" fill={hairColor} />}
+      {!isMale && hairStyle === 1 && <>
+        <path d="M25,37 Q23,8 50,5 Q77,8 75,37 Q73,20 50,18 Q27,20 25,37Z" fill={hairColor} />
+        <path d="M25,37 Q20,58 22,84 Q27,60 25,37Z" fill={hairColor} />
+        <path d="M75,37 Q80,58 78,84 Q73,60 75,37Z" fill={hairColor} />
+      </>}
+      {!isMale && hairStyle === 2 && <>
+        <path d="M24,38 Q22,7 50,5 Q78,7 76,38 Q74,20 50,18 Q26,20 24,38Z" fill={hairColor} />
+        <path d="M24,38 Q19,62 21,88 Q26,65 24,38Z" fill={hairColor} />
+        <path d="M76,38 Q81,62 79,88 Q74,65 76,38Z" fill={hairColor} />
+      </>}
 
       {/* ── Eyebrows ── */}
-      <path d={`M${lx-3.5},${ey-4} Q${lx},${ey-5.5} ${lx+3.5},${ey-4}`}
-        stroke={hairColor} strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      <path d={`M${rx-3.5},${ey-4} Q${rx},${ey-5.5} ${rx+3.5},${ey-4}`}
-        stroke={hairColor} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <path d={`M${lx-7},${bry+2} Q${lx},${bry} ${lx+6},${bry+2}`}
+        stroke={hairColor} strokeWidth="2.2" fill="none" strokeLinecap="round" />
+      <path d={`M${ex-6},${bry+2} Q${ex},${bry} ${ex+7},${bry+2}`}
+        stroke={hairColor} strokeWidth="2.2" fill="none" strokeLinecap="round" />
 
-      {/* ── Left eye: sclera → iris → pupil → highlight ── */}
-      <ellipse cx={lx} cy={ey} rx="3.4" ry="2.4" fill="#eee8dc" />
-      <ellipse cx={lx} cy={ey} rx="2.0" ry="2.0" fill={eyeColor} />
-      <circle  cx={lx} cy={ey} r="1.15" fill="#080604" />
-      <circle  cx={lx - 0.75} cy={ey - 0.65} r="0.5" fill="rgba(255,255,255,0.9)" />
+      {/* ── Left eye: clipped sclera → iris → pupil → highlight ── */}
+      <g clipPath={`url(#${cl})`}>
+        <ellipse cx={lx} cy={ey} rx="7.5" ry="5"   fill="#ede8dc" />
+        <ellipse cx={lx} cy={ey} rx="4.5" ry="4.5" fill={eyeColor} />
+        <circle  cx={lx} cy={ey} r="2.8"            fill="#080604" />
+        <circle  cx={lx - 1.5} cy={ey - 1.2} r="1.1" fill="rgba(255,255,255,0.9)" />
+      </g>
+      {/* Upper / lower eyelid lines */}
+      <path d={`M${lx-7.5},${ey} Q${lx},${ey-7} ${lx+7.5},${ey}`}
+        stroke="#120a04" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d={`M${lx-6},${ey} Q${lx},${ey+4.5} ${lx+6},${ey}`}
+        stroke={skinDark} strokeWidth="0.8" fill="none" strokeLinecap="round" opacity="0.5" />
 
-      {/* ── Right eye: sclera → iris → pupil → highlight ── */}
-      <ellipse cx={rx} cy={ey} rx="3.4" ry="2.4" fill="#eee8dc" />
-      <ellipse cx={rx} cy={ey} rx="2.0" ry="2.0" fill={eyeColor} />
-      <circle  cx={rx} cy={ey} r="1.15" fill="#080604" />
-      <circle  cx={rx - 0.75} cy={ey - 0.65} r="0.5" fill="rgba(255,255,255,0.9)" />
+      {/* ── Right eye ── */}
+      <g clipPath={`url(#${cr})`}>
+        <ellipse cx={ex} cy={ey} rx="7.5" ry="5"   fill="#ede8dc" />
+        <ellipse cx={ex} cy={ey} rx="4.5" ry="4.5" fill={eyeColor} />
+        <circle  cx={ex} cy={ey} r="2.8"            fill="#080604" />
+        <circle  cx={ex - 1.5} cy={ey - 1.2} r="1.1" fill="rgba(255,255,255,0.9)" />
+      </g>
+      <path d={`M${ex-7.5},${ey} Q${ex},${ey-7} ${ex+7.5},${ey}`}
+        stroke="#120a04" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d={`M${ex-6},${ey} Q${ex},${ey+4.5} ${ex+6},${ey}`}
+        stroke={skinDark} strokeWidth="0.8" fill="none" strokeLinecap="round" opacity="0.5" />
 
-      {/* ── Nose (hint) ── */}
-      <path d={`M19,${ey+5} Q20,${ey+7} 21,${ey+5}`}
-        stroke={skinShade} strokeWidth="0.85" fill="none" strokeLinecap="round" />
+      {/* ── Nose ── */}
+      {/* Bridge columns */}
+      <path d="M47,51 Q46,57 44,63" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
+      <path d="M53,51 Q54,57 56,63" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
+      {/* Nostril shapes */}
+      <path d="M44,63 Q40,66 42,69 Q45,67 44,63" fill={skinDark} opacity="0.33" />
+      <path d="M56,63 Q60,66 58,69 Q55,67 56,63" fill={skinDark} opacity="0.33" />
+      {/* Nose-tip arc */}
+      <path d="M43,64 Q50,67 57,64" stroke={skinDark} strokeWidth="0.9" fill="none" strokeLinecap="round" opacity="0.40" />
+
+      {/* ── Subtle cheek blush (female) ── */}
+      {!isMale && <>
+        <ellipse cx="33" cy="57" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
+        <ellipse cx="67" cy="57" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
+      </>}
 
       {/* ── Mouth ── */}
-      <path d={isMale
-          ? `M${16.5},${ey+10} Q20,${ey+12.5} ${23.5},${ey+10}`
-          : `M17,${ey+10} Q20,${ey+12} 23,${ey+10}`}
-        stroke={skinShade} strokeWidth="0.95" fill="none" strokeLinecap="round" />
+      {/* Cupid's bow upper lip */}
+      <path
+        d={isMale ? 'M40,73 Q43,70 50,72 Q57,70 60,73' : 'M41,73 Q44,70 50,72 Q56,70 59,73'}
+        stroke={lipColor} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.9"
+      />
+      {/* Lower lip fill */}
+      <path
+        d={isMale ? 'M40,73 Q50,78 60,73 Q57,81 50,81 Q43,81 40,73Z'
+                  : 'M41,73 Q50,77 59,73 Q56,80 50,80.5 Q44,80 41,73Z'}
+        fill={lipColor} opacity="0.42"
+      />
 
       {/* ── Injury overlay ── */}
-      {injuryOpacity > 0 && (
-        <rect width="40" height="40" fill={`rgba(180,20,20,${injuryOpacity})`} />
-      )}
+      {injuryOpacity > 0 && <rect width="100" height="100" fill={`rgba(180,20,20,${injuryOpacity})`} />}
+
       {/* Frame */}
-      <rect x="0.5" y="0.5" width="39" height="39" fill="none" stroke={frameColor} strokeWidth="1" />
+      <rect x="0.5" y="0.5" width="99" height="99" fill="none" stroke={frameColor} strokeWidth="1.5" />
     </svg>
   );
 };
