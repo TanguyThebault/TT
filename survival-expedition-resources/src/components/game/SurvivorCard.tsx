@@ -53,6 +53,7 @@ function traitLabel(trait: string, gender: 'male' | 'female'): string {
 /* ── Generated survivor portrait ─────────────────────────────────────────── */
 const SKIN_TONES  = ['#c8956c', '#a8774c', '#7a5030', '#e0b890', '#b07050'];
 const HAIR_COLORS = ['#1a0e05', '#2e1a08', '#8b6330', '#a07840', '#3a2208', '#c8a050'];
+const EYE_COLORS  = ['#4a6898', '#5a7850', '#7a5230', '#2e6070', '#6a4028', '#505085'];
 
 function seededInt(seed: number, max: number): number {
   return ((seed * 1664525 + 1013904223) >>> 0) % max;
@@ -63,56 +64,95 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
   for (let i = 0; i < survivor.id.length; i++) {
     seed = (seed * 31 + survivor.id.charCodeAt(i)) & 0x7fffffff;
   }
-  const skinTone  = SKIN_TONES[seededInt(seed, SKIN_TONES.length)];
-  const hairColor = HAIR_COLORS[seededInt(seed + 7, HAIR_COLORS.length)];
+  const skinTone  = SKIN_TONES[seededInt(seed,      SKIN_TONES.length)];
+  const hairColor = HAIR_COLORS[seededInt(seed +  7, HAIR_COLORS.length)];
+  const eyeColor  = EYE_COLORS[seededInt(seed  + 11, EYE_COLORS.length)];
   const hairStyle = seededInt(seed + 13, 3);
   const isMale    = survivor.gender === 'male';
+
+  // Derived skin shadow for nose / mouth
+  const skinShade = skinTone === SKIN_TONES[2] ? '#5a3020' : '#9a6040';
 
   const frameColor    = healthPct > 60 ? '#3a2e1a' : healthPct > 30 ? '#6a2a10' : '#8a1010';
   const injuryOpacity = healthPct < 30 ? 0.38 : healthPct < 60 ? 0.20 : 0;
 
+  // Face geometry (viewBox 0 0 40 40)
+  const faceRx = isMale ? 10 : 9;
+  const faceCy = 17;
+  // Eye positions
+  const lx = isMale ? 14   : 14.5;  // left eye x
+  const rx = isMale ? 26   : 25.5;  // right eye x
+  const ey = faceCy - 1;             // eye y = 16
+
   return (
     <svg
-      viewBox="0 0 32 32"
-      className="w-7 h-7 flex-shrink-0 rounded"
+      viewBox="0 0 40 40"
+      className="w-10 h-10 flex-shrink-0 rounded"
       xmlns="http://www.w3.org/2000/svg"
       style={{ background: '#0e0b08' }}
     >
-      {/* Body / shoulders */}
+      {/* Shoulders */}
       <path
-        d={isMale ? 'M2,32 L5,23 Q16,21 27,23 L30,32Z' : 'M4,32 L7,24 Q16,22 25,24 L28,32Z'}
-        fill="#1a1510"
+        d={isMale ? 'M0,40 L4,27 Q10,23 20,22 Q30,23 36,27 L40,40Z'
+                  : 'M2,40 L5,29 Q11,25 20,24 Q29,25 35,29 L38,40Z'}
+        fill="#181210"
       />
       {/* Neck */}
-      <rect x="13.5" y="20" width="5" height="5" rx="0.5" fill={skinTone} />
+      <rect x="16.5" y="25" width="7" height="6" rx="1" fill={skinTone} />
       {/* Face */}
-      <ellipse cx="16" cy="14.5" rx={isMale ? 8 : 7} ry="9.5" fill={skinTone} />
-      {/* Hair — 3 variants */}
-      {hairStyle === 0 && (
-        <path d="M8,14 Q8,5 16,4 Q24,5 24,14 Q22,8 16,7 Q10,8 8,14Z" fill={hairColor} />
+      <ellipse cx="20" cy={faceCy} rx={faceRx} ry="12" fill={skinTone} />
+
+      {/* ── Hair ── */}
+      {hairStyle === 0 && (isMale
+        ? <path d="M10,17 Q10,5 20,4 Q30,5 30,17 Q28,11 20,9 Q12,11 10,17Z" fill={hairColor} />
+        : <path d="M11,17 Q11,5 20,4 Q29,5 29,17 Q27,11 20,9 Q13,11 11,17Z" fill={hairColor} />
       )}
-      {hairStyle === 1 && (
-        <>
-          <path d="M8,14 Q7,4 16,3 Q25,4 24,14 Q22,7 16,6 Q10,7 8,14Z" fill={hairColor} />
-          {!isMale && (
-            <path d="M8,14 Q5,22 6,28 Q10,20 8,14Z M24,14 Q27,22 26,28 Q22,20 24,14Z" fill={hairColor} />
-          )}
-        </>
+      {hairStyle === 1 && (isMale
+        ? <path d="M9,17 Q9,4 20,3 Q31,4 31,17 Q29,10 20,8 Q11,10 9,17Z" fill={hairColor} />
+        : <>
+            <path d="M11,17 Q10,4 20,3 Q30,4 29,17 Q27,10 20,8 Q13,10 11,17Z" fill={hairColor} />
+            <path d="M11,17 Q8,28 9,38 Q12,27 11,17Z M29,17 Q32,28 31,38 Q28,27 29,17Z" fill={hairColor} />
+          </>
       )}
-      {hairStyle === 2 && (
-        <path d="M7,14 Q7,4 16,3 Q25,4 25,14 Q24,8 20,6 Q12,6 8,14Z" fill={hairColor} />
+      {hairStyle === 2 && (isMale
+        ? <path d="M10,17 Q9,3 20,2 Q31,3 30,17 Q30,9 22,7 Q14,7 10,17Z" fill={hairColor} />
+        : <path d="M11,17 Q10,3 20,2 Q30,3 29,17 Q29,9 21,7 Q13,7 11,17Z" fill={hairColor} />
       )}
-      {/* Eyes */}
-      <ellipse cx="12.5" cy="15" rx="1.8" ry="1.3" fill="#0a0806" />
-      <ellipse cx="19.5" cy="15" rx="1.8" ry="1.3" fill="#0a0806" />
-      {/* Mouth */}
-      <path d="M13.5,20 Q16,21.5 18.5,20" stroke="#8a5035" strokeWidth="0.7" fill="none" strokeLinecap="round" />
-      {/* Injury blood overlay */}
+
+      {/* ── Eyebrows ── */}
+      <path d={`M${lx-3.5},${ey-4} Q${lx},${ey-5.5} ${lx+3.5},${ey-4}`}
+        stroke={hairColor} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <path d={`M${rx-3.5},${ey-4} Q${rx},${ey-5.5} ${rx+3.5},${ey-4}`}
+        stroke={hairColor} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+
+      {/* ── Left eye: sclera → iris → pupil → highlight ── */}
+      <ellipse cx={lx} cy={ey} rx="3.4" ry="2.4" fill="#eee8dc" />
+      <ellipse cx={lx} cy={ey} rx="2.0" ry="2.0" fill={eyeColor} />
+      <circle  cx={lx} cy={ey} r="1.15" fill="#080604" />
+      <circle  cx={lx - 0.75} cy={ey - 0.65} r="0.5" fill="rgba(255,255,255,0.9)" />
+
+      {/* ── Right eye: sclera → iris → pupil → highlight ── */}
+      <ellipse cx={rx} cy={ey} rx="3.4" ry="2.4" fill="#eee8dc" />
+      <ellipse cx={rx} cy={ey} rx="2.0" ry="2.0" fill={eyeColor} />
+      <circle  cx={rx} cy={ey} r="1.15" fill="#080604" />
+      <circle  cx={rx - 0.75} cy={ey - 0.65} r="0.5" fill="rgba(255,255,255,0.9)" />
+
+      {/* ── Nose (hint) ── */}
+      <path d={`M19,${ey+5} Q20,${ey+7} 21,${ey+5}`}
+        stroke={skinShade} strokeWidth="0.85" fill="none" strokeLinecap="round" />
+
+      {/* ── Mouth ── */}
+      <path d={isMale
+          ? `M${16.5},${ey+10} Q20,${ey+12.5} ${23.5},${ey+10}`
+          : `M17,${ey+10} Q20,${ey+12} 23,${ey+10}`}
+        stroke={skinShade} strokeWidth="0.95" fill="none" strokeLinecap="round" />
+
+      {/* ── Injury overlay ── */}
       {injuryOpacity > 0 && (
-        <rect width="32" height="32" fill={`rgba(180,20,20,${injuryOpacity})`} />
+        <rect width="40" height="40" fill={`rgba(180,20,20,${injuryOpacity})`} />
       )}
-      {/* Frame border */}
-      <rect x="0.5" y="0.5" width="31" height="31" fill="none" stroke={frameColor} strokeWidth="1" />
+      {/* Frame */}
+      <rect x="0.5" y="0.5" width="39" height="39" fill="none" stroke={frameColor} strokeWidth="1" />
     </svg>
   );
 };
