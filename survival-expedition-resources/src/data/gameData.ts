@@ -369,11 +369,31 @@ export const CRAFT_RECIPES: Record<string, Record<string, number>> = {
 };
 
 export const SURVIVOR_FIRST_NAMES_MALE = [
-  'Marcus', 'Viktor', 'Axel', 'Dante', 'Rook', 'Finn', 'Kael',
+  'Marcus', 'Viktor', 'Axel', 'Dante', 'Rook', 'Finn', 'Kael', 'Gabriel',
+  'Raphaël', 'Léo', 'Louis', 'Noah', 'Arthur', 'Adam', 'Jules', 'Maël',
+  'Léon', 'Lucas', 'Gabin', 'Isaac', 'Liam', 'Sacha', 'Elio', 'Naël',
+  'Marceau', 'Hugo', 'Ethan', 'Nathan', 'Gaspard', 'Victor', 'Paul',
+  'Simon', 'Tom', 'Noé', 'Malo', 'Eliott', 'Milo', 'Basile', 'Théo',
+  'Clément', 'Antoine', 'Maxence', 'Baptiste', 'Martin', 'Kylian', 'Nolan',
+  'Élias', 'Aaron', 'Auguste', 'Henri', 'Charles', 'Émile', 'Félix', 'Jérôme',
+  'Théodore', 'Gautier', 'Romain', 'Adrien', 'Benjamin', 'Damien', 'Sébastien',
+  'Yann', 'Tristan', 'Alexandre', 'Matteo', 'Evan', 'Enzo', 'Mathis', 'Robin',
+  'Valentin', 'Samuel', 'Pierre', 'Joseph', 'François', 'Laurent', 'Olivier',
+  'Julien', 'Nicolas', 'Thomas', 'Rémi', 'Loup', 'Arsène', 'Côme', 'Amaury'
 ];
 
 export const SURVIVOR_FIRST_NAMES_FEMALE = [
   'Elena', 'Jade', 'Nadia', 'Mira', 'Sasha', 'Zara', 'Lyra', 'Nova',
+  'Louise', 'Ambre', 'Alba', 'Emma', 'Alma', 'Romy', 'Rose', 'Alice',
+  'Anna', 'Mia', 'Lina', 'Léna', 'Inaya', 'Lou', 'Agathe', 'Olivia',
+  'Juliette', 'Margot', 'Chloé', 'Giulia', 'Jeanne', 'Adèle', 'Iris',
+  'Eva', 'Livia', 'Charlie', 'Camille', 'Zoé', 'Léa', 'Clara', 'Manon',
+  'Éloïse', 'Victoria', 'Capucine', 'Maëlys', 'Anaïs', 'Noémie', 'Lila',
+  'Océane', 'Romane', 'Suzanne', 'Apolline', 'Céleste', 'Éléonore',
+  'Héloïse', 'Garance', 'Victoire', 'Mathilde', 'Pauline', 'Joséphine',
+  'Madeleine', 'Geneviève', 'Colette', 'Simone', 'Yasmine', 'Aurore',
+  'Solène', 'Maëlle', 'Eline', 'Louna', 'Ava', 'Lya', 'Sofia', 'Louna',
+  'Gabrielle', 'Thaïs', 'Léonie', 'Coline', 'Morgane', 'Sixtine', 'Esmée'
 ];
 
 export const SURVIVOR_FIRST_NAMES = [
@@ -384,6 +404,17 @@ export const SURVIVOR_FIRST_NAMES = [
 export const SURVIVOR_LAST_NAMES = [
   'Volkov', 'Chen', 'Reeves', 'Okafor', 'Moreau', 'Tanaka', 'Silva',
   'Kruger', 'Vasquez', 'Petrov', 'Nakamura', 'Dubois', 'Kowalski', 'Brennan', 'Ortega',
+  'Martin', 'Bernard', 'Thomas', 'Petit', 'Robert', 'Richard', 'Durand', 'Leroy',
+  'Lefebvre', 'Simon', 'Rousseau', 'Faure', 'Michel', 'Laurent', 'Garnier', 'Roux',
+  'Vincent', 'Fournier', 'Morel', 'Girard', 'André', 'Mercier', 'Blanc', 'Gauthier',
+  'Lambert', 'Barbier', 'Fontaine', 'Masson', 'Perrin', 'Chevalier', 'Morin', 'Marchand',
+  'Dupont', 'Lemaire', 'Schneider', 'Royer', 'Klein', 'Carpentier', 'Rolland', 'Sanchez',
+  'Denis', 'Lacroix', 'Meyer', 'Philippe', 'Garcia', 'David', 'Pierre', 'Boyer',
+  'Renard', 'Schmitt', 'Robin', 'Roussel', 'Dufour', 'Colin', 'Muller', 'Leroy',
+  'Joly', 'Gaillard', 'Jean', 'Perrot', 'Roche', 'Vidal', 'Benoit', 'Mathieu',
+  'Caron', 'Marty', 'Philippe', 'Louis', 'Dupuis', 'Fabre', 'Clement', 'Charpentier',
+  'Fernandez', 'Lopez', 'Henry', 'Remy', 'Besson', 'Laporte', 'Arnaud', 'Leduc',
+  'Prevost', 'Pons', 'Olivier', 'Jacques', 'Gilles', 'Marchal', 'Guillot', 'Breton'
 ];
 
 export const SURVIVOR_TRAITS = [
