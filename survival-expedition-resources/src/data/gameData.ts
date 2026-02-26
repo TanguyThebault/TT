@@ -61,6 +61,16 @@ export const RESOURCES: ResourceDef[] = [
   { id: 'materials', name: 'Matériaux', icon: 'Boxes', color: '#a78bfa' },
 ];
 
+/** Valeur d'échange de chaque ressource (plus c'est rare, plus la valeur est haute). */
+export const RESOURCE_RARITY: Record<string, number> = {
+  food:        1,
+  scrap:       1,
+  materials:   2,
+  fuel:        3,
+  medicine:    4,
+  electronics: 6,
+};
+
 export const BUILDINGS: BuildingDef[] = [
   {
     id: 'workshop',
@@ -255,6 +265,16 @@ export const ZONES: ZoneDef[] = [
       { type: 'equipment', id: 'combat_rifle', name: 'Fusil de Combat', minQty: 1, maxQty: 1, chance: 0.25 },
       { type: 'equipment', id: 'tactical_vest', name: 'Gilet Tactique', minQty: 1, maxQty: 1, chance: 0.2 },
     ],
+  },
+  {
+    id: 'signal_contact',
+    name: 'Fréquence Inconnue',
+    description: 'Un signal radio stable capté sur une fréquence inutilisée. Rythmé, structuré — pas un accident. La zone de transmission semble dégagée, aucune menace détectée dans le périmètre.',
+    icon: 'Radio',
+    baseDuration: 240, // 4 min
+    dangerLevel: 0,
+    requiredBuildingLevel: { buildingId: 'radio', level: 2 },
+    lootTable: [],
   },
   {
     id: 'hospital',
@@ -457,4 +477,14 @@ export function getRecycleYield(item: EquipmentDef, engineeringLevel: number): R
     if (qty > 0) result[res] = qty;
   }
   return result;
+}
+
+// ── Barter / Trade ────────────────────────────────────────────────────────────
+
+/**
+ * Valeur d'échange d'un équipement selon son tier :
+ * T1=1, T2=5, T3=25, T4=125, T5=625.
+ */
+export function getEquipmentTradeValue(tier: number): number {
+  return Math.pow(5, tier - 1);
 }

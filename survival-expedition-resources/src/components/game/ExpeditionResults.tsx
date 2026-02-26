@@ -3,7 +3,7 @@ import { useGame } from '@/contexts/GameContext';
 import { ZONES, RESOURCES } from '@/data/gameData';
 import {
   X, AlertTriangle, Heart, Sword, Shield, Backpack,
-  Check, ChevronRight, Search, Cog,
+  Check, ChevronRight, Search, Cog, Radio,
 } from 'lucide-react';
 
 const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'text-purple-400', 'text-amber-400'];
@@ -26,6 +26,50 @@ const ExpeditionResults: React.FC = () => {
 
   const zone    = ZONES.find(z => z.id === expedition.zoneId);
   const results = expedition.results;
+
+  // ── Special case: contact mission ────────────────────────────────────────
+  if (expedition.zoneId === 'signal_contact') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl max-w-md w-full shadow-2xl">
+          <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 p-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-green-400 font-mono">Signal Localisé</h2>
+              <p className="text-xs text-zinc-400 font-mono">{zone?.name}</p>
+            </div>
+            <button onClick={collectResults} className="text-zinc-500 hover:text-zinc-300 p-1">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-full bg-green-900/30 border border-green-500/20 flex-shrink-0">
+                <Radio className="w-8 h-8 text-green-400" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-green-400 font-mono font-bold text-sm">Contact établi !</p>
+                <p className="text-zinc-300 text-xs font-mono">{results.events[0]}</p>
+                {state.traderCamp && (
+                  <p className="text-amber-400 font-mono font-bold mt-2">{state.traderCamp.name}</p>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500 font-mono border-t border-zinc-800 pt-3">
+              Accédez à l'onglet <span className="text-amber-400 font-bold">Troc</span> pour négocier des échanges avec ce camp.
+            </p>
+          </div>
+          <div className="p-4 border-t border-zinc-800">
+            <button
+              onClick={collectResults}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white font-bold font-mono text-sm uppercase tracking-wider transition-colors"
+            >
+              <Check className="w-4 h-4" /> Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Survivors who went on this expedition
   const survivors = expedition.survivorIds

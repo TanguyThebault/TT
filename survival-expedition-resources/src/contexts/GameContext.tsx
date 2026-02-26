@@ -9,6 +9,7 @@ import {
   getDangerReduction, getMaxSurvivors,
   getRecycleMinEngineering, getRecycleYield, getRecycleDuration,
   TRAINING_DURATIONS, TRAINING_BUILDING_REQ, TRAINING_STAT_LABELS, getTrainingBuildingLevel,
+  RESOURCE_RARITY, getEquipmentTradeValue,
   type TrainableStat, type EquipmentDef,
 } from '@/data/gameData';
 
@@ -47,6 +48,20 @@ export interface RecycleTask {
   engineeringLevel: number;
 }
 
+export interface TraderCamp {
+  name: string;
+  resources: Record<string, number>;
+  equipment: EquipmentDef[];
+}
+
+export type TradeGive =
+  | { kind: 'resource'; resourceId: string; quantity: number }
+  | { kind: 'equipment'; inventoryIndex: number };
+
+export type TradeReceive =
+  | { kind: 'resource'; resourceId: string; quantity: number }
+  | { kind: 'equipment'; campEquipIndex: number };
+
 export interface Expedition {
   id: string;
   zoneId: string;
@@ -72,6 +87,8 @@ export interface GameState {
   inventory: EquipmentDef[];
   recyclingTasks: RecycleTask[];
   trainingTasks: TrainingTask[];
+  traderCampDiscovered: boolean;
+  traderCamp: TraderCamp | null;
   gameLog: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[];
   pendingResults: Expedition | null;
   initialized: boolean;
@@ -95,6 +112,7 @@ type GameAction =
   | { type: 'START_TRAINING'; survivorId: string; stat: TrainableStat }
   | { type: 'CANCEL_TRAINING'; taskId: string }
   | { type: 'COMPLETE_TRAINING'; taskId: string }
+  | { type: 'EXECUTE_TRADE'; give: TradeGive; receive: TradeReceive }
   | { type: 'TICK' };
 
 function randomInt(min: number, max: number): number {
@@ -107,6 +125,27 @@ function getEffectiveEngineering(survivor: Survivor): number {
     if (eq?.stats.engineering) total += eq.stats.engineering;
   }
   return total;
+}
+
+function generateTraderCamp(): TraderCamp {
+  const campNames = ['Camp Delta', 'Refuge Boréal', 'Fort Émergence', 'Enclave Sirius', 'Bastion Omega'];
+  const name = campNames[randomInt(0, campNames.length - 1)];
+  const pool = ALL_EQUIPMENT.filter(e => e.tier <= 3);
+  const equipCount = randomInt(2, 4);
+  const equipment: EquipmentDef[] = [];
+  for (let i = 0; i < equipCount; i++) equipment.push({ ...pool[randomInt(0, pool.length - 1)] });
+  return {
+    name,
+    resources: {
+      food:        randomInt(15, 50),
+      scrap:       randomInt(10, 35),
+      medicine:    randomInt(5, 20),
+      fuel:        randomInt(4, 16),
+      electronics: randomInt(2, 10),
+      materials:   randomInt(8, 25),
+    },
+    equipment,
+  };
 }
 
 function generateSurvivor(): Survivor {
@@ -199,8 +238,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'INIT_GAME': {
       const s: GameState = {
         ...action.state, initialized: true,
-        recyclingTasks: action.state.recyclingTasks || [],
-        trainingTasks:  action.state.trainingTasks  || [],
+        recyclingTasks:       action.state.recyclingTasks       || [],
+        trainingTasks:        action.state.trainingTasks        || [],
+        traderCampDiscovered: action.state.traderCampDiscovered ?? false,
+        traderCamp:           action.state.traderCamp           ?? null,
       };
       const busyIds = new Set([
         ...s.recyclingTasks.map(t => t.survivorId),
@@ -245,6 +286,36 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const exp = state.expeditions.find(e => e.id === action.expeditionId);
       if (!exp || exp.completed) return state;
       const expSurvivors = state.survivors.filter(s => exp.survivorIds.includes(s.id));
+
+      // Special case: contact mission — no loot, establish trader camp
+      if (exp.zoneId === 'signal_contact') {
+        const alreadyKnown = state.traderCampDiscovered && state.traderCamp;
+        const newCamp = alreadyKnown ? state.traderCamp! : generateTraderCamp();
+        const contactResults: ExpeditionResult = {
+          resources: {}, equipment: [],
+          events: [alreadyKnown
+            ? `Contact réaffirmé avec ${newCamp.name}. Le troc reste disponible.`
+            : `Contact établi ! Un camp de survivants organisé a été localisé. Le troc est maintenant possible.`],
+          survivorDamage: {},
+        };
+        const completedExp = { ...exp, completed: true, results: contactResults };
+        return {
+          ...state,
+          expeditions: state.expeditions.map(e => e.id === action.expeditionId ? completedExp : e),
+          survivors: state.survivors.map(s =>
+            exp.survivorIds.includes(s.id) ? { ...s, status: 'available' as const, expeditionId: undefined } : s
+          ),
+          pendingResults: completedExp,
+          traderCampDiscovered: true,
+          traderCamp: newCamp,
+          gameLog: [{
+            id: uuidv4(),
+            message: alreadyKnown ? `Contact réaffirmé avec ${newCamp.name}.` : `Contact établi avec ${newCamp.name} !`,
+            time: Date.now(), type: 'success',
+          }, ...state.gameLog.slice(0, 49)],
+        };
+      }
+
       const results = generateExpeditionResults(exp, expSurvivors, state);
       const completedExp = { ...exp, completed: true, results };
       const newSurvivors = state.survivors.map(s => {
@@ -412,6 +483,66 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameLog: [{ id: uuidv4(), message: `${survivor?.name || 'Survivant'} a recyclé ${task.item.name} (+${yieldStr} ressources).`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
       };
     }
+    case 'EXECUTE_TRADE': {
+      if (!state.traderCamp) return state;
+      const { give, receive } = action;
+
+      // Resolve actual items
+      const giveItem  = give.kind    === 'equipment' ? (state.inventory[give.inventoryIndex] ?? null)          : null;
+      const recvItem  = receive.kind === 'equipment' ? (state.traderCamp.equipment[receive.campEquipIndex] ?? null) : null;
+      if (give.kind    === 'equipment' && !giveItem)  return state;
+      if (receive.kind === 'equipment' && !recvItem)  return state;
+
+      // Equipment tier constraint (max 1 tier difference)
+      if (giveItem && recvItem && Math.abs(giveItem.tier - recvItem.tier) > 1) return state;
+
+      // Value check
+      const giveVal = give.kind === 'resource'
+        ? give.quantity * (RESOURCE_RARITY[give.resourceId] ?? 1)
+        : getEquipmentTradeValue(giveItem!.tier);
+      const recvVal = receive.kind === 'resource'
+        ? receive.quantity * (RESOURCE_RARITY[receive.resourceId] ?? 1)
+        : getEquipmentTradeValue(recvItem!.tier);
+      if (giveVal < recvVal) return state;
+
+      // Availability checks
+      if (give.kind    === 'resource' && (state.resources[give.resourceId] || 0) < give.quantity)              return state;
+      if (receive.kind === 'resource' && (state.traderCamp.resources[receive.resourceId] || 0) < receive.quantity) return state;
+
+      // Apply trade
+      const newResources   = { ...state.resources };
+      const newInventory   = [...state.inventory];
+      const campResources  = { ...state.traderCamp.resources };
+      const campEquipment  = [...state.traderCamp.equipment];
+
+      if (give.kind === 'resource') {
+        newResources[give.resourceId] -= give.quantity;
+        campResources[give.resourceId] = (campResources[give.resourceId] || 0) + give.quantity;
+      } else {
+        campEquipment.push(newInventory.splice(give.inventoryIndex, 1)[0]);
+      }
+      if (receive.kind === 'resource') {
+        campResources[receive.resourceId] -= receive.quantity;
+        newResources[receive.resourceId] = (newResources[receive.resourceId] || 0) + receive.quantity;
+      } else {
+        newInventory.push(campEquipment.splice(receive.campEquipIndex, 1)[0]);
+      }
+
+      const giveDesc    = giveItem  ? giveItem.name  : `${give.kind    === 'resource' ? give.quantity    : ''} ${give.kind    === 'resource' ? give.resourceId    : ''}`.trim();
+      const receiveDesc = recvItem  ? recvItem.name  : `${receive.kind === 'resource' ? receive.quantity : ''} ${receive.kind === 'resource' ? receive.resourceId : ''}`.trim();
+
+      return {
+        ...state,
+        resources: newResources,
+        inventory: newInventory,
+        traderCamp: { ...state.traderCamp, resources: campResources, equipment: campEquipment },
+        gameLog: [{
+          id: uuidv4(),
+          message: `Troc conclu avec ${state.traderCamp.name} : ${giveDesc} contre ${receiveDesc}.`,
+          time: Date.now(), type: 'success',
+        }, ...state.gameLog.slice(0, 49)],
+      };
+    }
     case 'TICK': {
       const infirmaryLevel = state.buildings['infirmary'] || 0;
       if (infirmaryLevel > 0) {
@@ -436,6 +567,7 @@ function createInitialState(): GameState {
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
     buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [],
+    traderCampDiscovered: false, traderCamp: null,
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
     pendingResults: null, initialized: false,
@@ -460,6 +592,7 @@ interface GameContextType {
   cancelRecycle: (taskId: string) => void;
   startTraining: (survivorId: string, stat: TrainableStat) => void;
   cancelTraining: (taskId: string) => void;
+  executeTrade: (give: TradeGive, receive: TradeReceive) => void;
   // Auth
   user: User | null;
   authLoading: boolean;
@@ -655,13 +788,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const cancelRecycle  = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_RECYCLE', taskId }); }, []);
   const startTraining  = useCallback((survivorId: string, stat: TrainableStat) => { dispatch({ type: 'START_TRAINING', survivorId, stat }); }, []);
   const cancelTraining = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_TRAINING', taskId }); }, []);
+  const executeTrade   = useCallback((give: TradeGive, receive: TradeReceive) => { dispatch({ type: 'EXECUTE_TRADE', give, receive }); }, []);
 
   return (
     <GameContext.Provider value={{
       state, dispatch, upgradeBuilding, launchExpedition,
       equipItem, unequipItem, craftItem, healSurvivor,
       viewResults, collectResults, resetGame,
-      startRecycle, cancelRecycle, startTraining, cancelTraining,
+      startRecycle, cancelRecycle, startTraining, cancelTraining, executeTrade,
       user, authLoading, signIn, signUp, signOut,
       cloudSave, cloudLoad, cloudSaving, lastCloudSave,
     }}>

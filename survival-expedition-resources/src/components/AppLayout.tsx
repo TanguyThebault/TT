@@ -14,6 +14,7 @@ import InventoryPanel from './game/InventoryPanel';
 import GameLog from './game/GameLog';
 import CampLife from './game/CampLife';
 import TasksPanel from './game/TasksPanel';
+import TradingPanel from './game/TradingPanel';
 import ExpeditionResults from './game/ExpeditionResults';
 
 const AppLayout: React.FC = () => {
@@ -133,6 +134,7 @@ const AppLayout: React.FC = () => {
             activeExpeditions={activeExpeditions}
             completedExpeditions={completedExpeditions}
             inactiveSurvivors={inactiveSurvivors}
+            traderCampDiscovered={state.traderCampDiscovered}
           />
 
           {/* Tab Content */}
@@ -143,6 +145,7 @@ const AppLayout: React.FC = () => {
               {activeTab === 'expeditions' && <ExpeditionMap />}
               {activeTab === 'crafting'    && <CraftingPanel />}
               {activeTab === 'tasks'       && <TasksPanel />}
+              {activeTab === 'trade'       && <TradingPanel />}
             </div>
 
             {/* Sidebar */}

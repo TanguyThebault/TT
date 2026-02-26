@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  Warehouse, Users, MapPin, Hammer, ClipboardList,
+  Warehouse, Users, MapPin, Hammer, ClipboardList, ArrowLeftRight,
 } from 'lucide-react';
 
-export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting' | 'tasks';
+export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting' | 'tasks' | 'trade';
 
 interface TabNavigationProps {
   activeTab: GameTab;
@@ -11,9 +11,10 @@ interface TabNavigationProps {
   activeExpeditions: number;
   completedExpeditions: number;
   inactiveSurvivors: number;
+  traderCampDiscovered?: boolean;
 }
 
-const tabs = [
+const BASE_TABS = [
   { id: 'base' as GameTab,        label: 'Base',        icon: <Warehouse className="w-4 h-4" /> },
   { id: 'survivors' as GameTab,   label: 'Survivants',  icon: <Users className="w-4 h-4" /> },
   { id: 'expeditions' as GameTab, label: 'Expéditions', icon: <MapPin className="w-4 h-4" /> },
@@ -21,9 +22,13 @@ const tabs = [
   { id: 'tasks' as GameTab,       label: 'Tâches',      icon: <ClipboardList className="w-4 h-4" /> },
 ];
 
+const TRADE_TAB = { id: 'trade' as GameTab, label: 'Troc', icon: <ArrowLeftRight className="w-4 h-4" /> };
+
 const TabNavigation: React.FC<TabNavigationProps> = ({
   activeTab, onTabChange, activeExpeditions, completedExpeditions, inactiveSurvivors,
+  traderCampDiscovered,
 }) => {
+  const tabs = traderCampDiscovered ? [...BASE_TABS, TRADE_TAB] : BASE_TABS;
   return (
     <div className="flex gap-1 bg-zinc-900/60 border border-zinc-800 rounded-lg p-1">
       {tabs.map(tab => {
