@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { ZONES, BUILDINGS, RESOURCES, getExpeditionDurationMultiplier, getDangerReduction, getUpgradeCost, type ZoneDef, type BuildingDef } from '@/data/gameData';
 import SurvivorCard from './SurvivorCard';
@@ -127,11 +127,57 @@ const ExpeditionMap: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSurvivors, setSelectedSurvivors] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, panX: 0, panY: 0, moved: false });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Non-passive wheel listener to allow preventDefault (blocks page scroll)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) / rect.width * 800;
+      const sy = (e.clientY - rect.top) / rect.height * 520;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setView(v => {
+        const newZoom = Math.min(4, Math.max(0.5, v.zoom * factor));
+        return {
+          zoom: newZoom,
+          panX: sx - ((sx - v.panX) / v.zoom) * newZoom,
+          panY: sy - ((sy - v.panY) / v.zoom) * newZoom,
+        };
+      });
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, panX: view.panX, panY: view.panY, moved: false };
+  };
+
+  const onMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragRef.current.active) return;
+    const rect = svgRef.current!.getBoundingClientRect();
+    const dx = (e.clientX - dragRef.current.startX) / rect.width * 800;
+    const dy = (e.clientY - dragRef.current.startY) / rect.height * 520;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragRef.current.moved = true;
+    setView(v => ({ ...v, panX: dragRef.current.panX + dx, panY: dragRef.current.panY + dy }));
+  };
+
+  const onMouseUp = () => { dragRef.current.active = false; };
+
+  const handleZoneClick = (zoneId: string) => {
+    if (dragRef.current.moved) return;
+    setSelectedId(prev => prev === zoneId ? null : zoneId);
+  };
 
   const garageLevel    = state.buildings['garage']     || 0;
   const watchtowerLevel = state.buildings['watchtower'] || 0;
@@ -184,8 +230,20 @@ const ExpeditionMap: React.FC = () => {
     <div className="space-y-3">
 
       {/* ── Tactical Map SVG ─────────────────────────────────────────────── */}
-      <div className="rounded-lg overflow-hidden border border-zinc-800 shadow-2xl">
-        <svg viewBox="0 0 800 520" className="w-full block" style={{ background: '#07070a' }}>
+      <div className="rounded-lg overflow-hidden border border-zinc-800 shadow-2xl relative">
+        <button
+          onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })}
+          className="absolute top-2 right-2 z-10 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 bg-zinc-900/80 border border-zinc-700/40 rounded px-2 py-1 transition-colors"
+        >
+          ⟳ reset vue
+        </button>
+        <svg ref={svgRef} viewBox="0 0 800 520" className="w-full block"
+          style={{ background: '#07070a', cursor: 'grab' }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+        >
           <defs>
             {/* Blur for environment blobs */}
             <filter id="em-env" x="-60%" y="-60%" width="220%" height="220%">
@@ -207,8 +265,11 @@ const ExpeditionMap: React.FC = () => {
             </radialGradient>
           </defs>
 
-          {/* Grid background */}
+          {/* Fixed background */}
           <rect width="800" height="520" fill="url(#em-grid)"/>
+
+          {/* ── Zoomable / pannable content ── */}
+          <g transform={`translate(${view.panX}, ${view.panY}) scale(${view.zoom})`}>
 
           {/* Environment biome blobs */}
           {ZONES.map(z => {
@@ -229,9 +290,6 @@ const ExpeditionMap: React.FC = () => {
               </g>
             );
           })}
-
-          {/* Vignette overlay */}
-          <rect width="800" height="520" fill="url(#em-vign)"/>
 
           {/* Distance rings */}
           {[MIN_R, (MIN_R + MAX_R) * 0.5, MAX_R].map((r, i) => (
@@ -303,7 +361,7 @@ const ExpeditionMap: React.FC = () => {
 
             return (
               <g key={`z-${z.id}`}
-                onClick={() => setSelectedId(selectedId === z.id ? null : z.id)}
+                onClick={() => handleZoneClick(z.id)}
                 style={{ cursor: 'pointer' }}
               >
                 {/* Activity ring (animated dash when active) */}
@@ -398,21 +456,25 @@ const ExpeditionMap: React.FC = () => {
               fill="#f59e0b" fontSize="9" fontFamily="monospace" fontWeight="bold">BASE</text>
           </g>
 
-          {/* Header label */}
-          <text x="12" y="18" fill="#28282e" fontSize="9" fontFamily="monospace" letterSpacing="1">
+          </g>
+          {/* ── End zoomable content ── */}
+
+          {/* Fixed overlays (vignette, labels, compass) */}
+          <rect width="800" height="520" fill="url(#em-vign)" style={{ pointerEvents: 'none' }}/>
+
+          <text x="12" y="18" fill="#28282e" fontSize="9" fontFamily="monospace" letterSpacing="1"
+            style={{ pointerEvents: 'none' }}>
             CARTE TACTIQUE — COMMANDEMENT
           </text>
 
-          {/* Legend */}
-          <g transform="translate(12, 502)">
+          <g transform="translate(12, 502)" style={{ pointerEvents: 'none' }}>
             <circle cx="5" cy="0" r="4" fill="#60a5fa"/>
             <text x="14" y="4" fill="#46465a" fontSize="8" fontFamily="monospace">En mission</text>
             <circle cx="82" cy="0" r="4" fill="#f59e0b"/>
             <text x="91" y="4" fill="#46465a" fontSize="8" fontFamily="monospace">Retour base</text>
           </g>
 
-          {/* Compass rose */}
-          <g transform="translate(764, 468)">
+          <g transform="translate(764, 468)" style={{ pointerEvents: 'none' }}>
             <circle cx="0" cy="0" r="18" fill="rgba(0,0,0,0.6)" stroke="#26262e" strokeWidth="1"/>
             <line x1="0" y1="-12" x2="0" y2="12" stroke="#3a3a48" strokeWidth="1"/>
             <line x1="-12" y1="0" x2="12" y2="0" stroke="#3a3a48" strokeWidth="1"/>
