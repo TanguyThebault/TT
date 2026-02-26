@@ -324,25 +324,50 @@ const ExpeditionMap: React.FC = () => {
             const elapsed = (now - exp.startTime) / 1000;
             const progress = Math.min(1, elapsed / exp.duration);
             const done = exp.completed;
-            const mx   = done ? pos.x : CX + (pos.x - CX) * progress;
-            const my   = done ? pos.y : CY + (pos.y - CY) * progress;
-            const col  = done ? '#f59e0b' : '#60a5fa';
-            const n    = state.survivors.filter(s => exp.survivorIds.includes(s.id)).length;
+
+            // Three phases: [0, 1/3] going, [1/3, 2/3] on-site, [2/3, 1] returning
+            const phase = progress < 1/3 ? 1 : progress < 2/3 ? 2 : 3;
+            let mx: number, my: number;
+            if (done) {
+              mx = pos.x; my = pos.y;
+            } else if (phase === 1) {
+              const p = progress * 3;
+              mx = CX + (pos.x - CX) * p; my = CY + (pos.y - CY) * p;
+            } else if (phase === 2) {
+              mx = pos.x; my = pos.y;
+            } else {
+              const p = (progress - 2/3) * 3;
+              mx = pos.x + (CX - pos.x) * p; my = pos.y + (CY - pos.y) * p;
+            }
+
+            // Blue going/on-site, amber returning/done
+            const col = (done || phase === 3) ? '#f59e0b' : '#60a5fa';
+            // Line origin: base for phase 1-2, zone for phase 3 (return path)
+            const lx1 = phase === 3 ? pos.x : CX;
+            const ly1 = phase === 3 ? pos.y : CY;
+            const n   = state.survivors.filter(s => exp.survivorIds.includes(s.id)).length;
+
             return (
               <g key={`xp-${exp.id}`}>
                 {/* Travelled path */}
-                <line x1={CX} y1={CY} x2={mx} y2={my}
+                <line x1={lx1} y1={ly1} x2={mx} y2={my}
                   stroke={col} strokeWidth="1.5" opacity="0.18"/>
                 {/* Pulse ring */}
                 <circle cx={mx} cy={my} r="8" fill="none" stroke={col} strokeWidth="1.5" opacity="0">
-                  <animate attributeName="r"       values="7;17;7"     dur="2s" repeatCount="indefinite"/>
-                  <animate attributeName="opacity" values="0.7;0;0.7"  dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="r"       values="7;17;7"    dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
                 </circle>
                 {/* Marker dot */}
                 <circle cx={mx} cy={my} r="5" fill={col} opacity="0.95"/>
-                {/* Survivor count */}
+                {/* Survivor count + phase label */}
                 <text x={mx + 8} y={my - 5}
                   fill={col} fontSize="8" fontFamily="monospace" opacity="0.85">{n}s</text>
+                {!done && (
+                  <text x={mx + 8} y={my + 6}
+                    fill={col} fontSize="6.5" fontFamily="monospace" opacity="0.6">
+                    {phase === 1 ? 'aller' : phase === 2 ? 'sur place' : 'retour'}
+                  </text>
+                )}
               </g>
             );
           })}
