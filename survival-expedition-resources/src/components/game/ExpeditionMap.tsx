@@ -267,6 +267,7 @@ const ExpeditionMap: React.FC = () => {
 
           {/* Fixed background */}
           <rect width="800" height="520" fill="url(#em-grid)"/>
+          <rect width="800" height="520" fill="url(#em-vign)" style={{ pointerEvents: 'none' }}/>
 
           {/* ── Zoomable / pannable content ── */}
           <g transform={`translate(${view.panX}, ${view.panY}) scale(${view.zoom})`}>
@@ -459,9 +460,7 @@ const ExpeditionMap: React.FC = () => {
           </g>
           {/* ── End zoomable content ── */}
 
-          {/* Fixed overlays (vignette, labels, compass) */}
-          <rect width="800" height="520" fill="url(#em-vign)" style={{ pointerEvents: 'none' }}/>
-
+          {/* Fixed overlays (labels, compass) */}
           <text x="12" y="18" fill="#28282e" fontSize="9" fontFamily="monospace" letterSpacing="1"
             style={{ pointerEvents: 'none' }}>
             CARTE TACTIQUE — COMMANDEMENT
