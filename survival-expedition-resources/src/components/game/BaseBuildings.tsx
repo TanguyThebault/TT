@@ -2,7 +2,7 @@ import React from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { BUILDINGS, getUpgradeCost, RESOURCES } from '@/data/gameData';
 import {
-  Hammer, Heart, Warehouse, Users, Eye, Radio, Truck, Sprout,
+  Hammer, Heart, Warehouse, Users, Eye, Radio, Truck, Sprout, Package,
   ArrowUp, Lock, Check
 } from 'lucide-react';
 
@@ -15,8 +15,8 @@ const buildingIcons: Record<string, React.ReactNode> = {
   Eye: <Eye className="w-5 h-5" />,
   Radio: <Radio className="w-5 h-5" />,
   Car: <Truck className="w-5 h-5" />,
-
   Sprout: <Sprout className="w-5 h-5" />,
+  Package: <Package className="w-5 h-5" />,
 };
 
 const BaseBuildings: React.FC = () => {

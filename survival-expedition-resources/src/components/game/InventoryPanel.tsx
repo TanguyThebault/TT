@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
+import { getInventoryCapacity } from '@/data/gameData';
 import { Sword, Shield, Backpack, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 const slotIcons = {
@@ -17,8 +18,6 @@ const slotLabels: Record<string, string> = {
 const tierColors  = ['', 'text-zinc-400',    'text-green-400',    'text-blue-400',    'text-purple-400',    'text-amber-400'];
 const tierBg      = ['', 'bg-zinc-800/60',   'bg-green-950/60',   'bg-blue-950/60',   'bg-purple-950/60',   'bg-amber-950/60'];
 const tierBorder  = ['', 'border-zinc-700/50','border-green-700/50','border-blue-700/50','border-purple-700/50','border-amber-600/50'];
-
-const CAPACITY = 20;
 
 const HazardStripe: React.FC = () => (
   <div className="h-2 w-full" style={{
@@ -50,6 +49,7 @@ const InventoryPanel: React.FC = () => {
   const { state } = useGame();
   const [isOpen, setIsOpen] = useState(false);
   const totalItems = state.inventory.length;
+  const CAPACITY = getInventoryCapacity(state.buildings['armory'] || 0);
 
   const grouped: Record<string, typeof state.inventory> = {};
   state.inventory.forEach(item => {
@@ -76,7 +76,7 @@ const InventoryPanel: React.FC = () => {
               )}
             </div>
             <div className="text-left">
-              <div className="text-xs font-bold font-mono text-zinc-200 tracking-widest uppercase">Entrepôt</div>
+              <div className="text-xs font-bold font-mono text-zinc-200 tracking-widest uppercase">Inventaire</div>
               <div className="text-[10px] font-mono text-zinc-500">
                 {totalItems === 0 ? 'Vide' : `${totalItems} / ${CAPACITY} objet${totalItems > 1 ? 's' : ''}`}
               </div>
@@ -99,7 +99,7 @@ const InventoryPanel: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
-                Zone de Stockage — Secteur A
+                Inventaire — Équipements
               </span>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors">
@@ -110,7 +110,7 @@ const InventoryPanel: React.FC = () => {
           {totalItems === 0 ? (
             <div className="py-8 flex flex-col items-center gap-2">
               <EmptyShelves />
-              <p className="text-xs font-mono text-zinc-600">Entrepôt vide</p>
+              <p className="text-xs font-mono text-zinc-600">Inventaire vide</p>
             </div>
           ) : (
             <div className="p-2 space-y-2">

@@ -190,6 +190,22 @@ export const BUILDINGS: BuildingDef[] = [
       '+10 nourriture/min',
     ],
   },
+  {
+    id: 'armory',
+    name: 'Armurerie',
+    description: 'Augmenter la capacité de stockage de l\'inventaire d\'équipements.',
+    icon: 'Package',
+    maxLevel: 5,
+    baseCost: { scrap: 20, materials: 15 },
+    costMultiplier: 1.7,
+    benefits: [
+      'Inventaire: 25 objets',
+      'Inventaire: 32 objets',
+      'Inventaire: 40 objets',
+      'Inventaire: 50 objets',
+      'Inventaire: 65 objets',
+    ],
+  },
 ];
 
 export const ZONES: ZoneDef[] = [
@@ -372,4 +388,9 @@ export function getExpeditionDurationMultiplier(garageLevel: number): number {
 export function getDangerReduction(watchtowerLevel: number): number {
   const reds = [0, 0.05, 0.12, 0.20, 0.30, 0.40];
   return reds[Math.min(watchtowerLevel, 5)];
+}
+
+export function getInventoryCapacity(armoryLevel: number): number {
+  const caps = [20, 25, 32, 40, 50, 65];
+  return caps[Math.min(armoryLevel, 5)];
 }
