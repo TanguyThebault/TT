@@ -76,26 +76,27 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
   const frameColor    = healthPct > 60 ? '#3a2e1a' : healthPct > 30 ? '#6a2a10' : '#8a1010';
   const injuryOpacity = healthPct < 30 ? 0.38 : healthPct < 60 ? 0.20 : 0;
 
-  // ── Face geometry (viewBox 100×100) ───────────────────────────────────────
-  const frx = isMale ? 28 : 25;          // face half-width
-  const lx  = isMale ? 36 : 37;          // left  eye centre x
-  const ex  = isMale ? 64 : 63;          // right eye centre x
-  const ey  = 46;                         // eye centre y
-  const bry = ey - 7;                     // eyebrow y
-  const elx = 50 - frx - 3;              // left  ear centre x
-  const erx = 50 + frx + 3;              // right ear centre x
-  // Unique clip ids so multiple portraits don't share the same id
-  const cl = `scl${seed}`, cr = `scr${seed}`;
+  // ── Face geometry — viewBox 100×100, face fills canvas (no body) ──────────
+  // Face: cx=50 cy=50 rx=28(M)/25(F) ry=38 → top y=12, bottom y=88
+  // Hair inner paths are computed to follow the face oval contour exactly so
+  // there is no gap between the hair cap and the forehead skin.
+  const frx = isMale ? 28 : 25;
+  const lx  = isMale ? 36 : 37;   // left  eye x
+  const ex  = isMale ? 64 : 63;   // right eye x
+  const ey  = 42;                  // eye y
+  const bry = 35;                  // eyebrow y
+  const elx = 50 - frx - 4;       // left  ear x
+  const erx = 50 + frx + 4;       // right ear x
+  const cl  = `scl${seed}`, cr = `scr${seed}`;
 
   return (
     <svg
       viewBox="0 0 100 100"
       className="w-20 h-20 flex-shrink-0 rounded"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ background: '#0e0b08' }}
+      style={{ background: '#2c1e10' }}
     >
       <defs>
-        {/* Almond-shaped eyelid clip paths */}
         <clipPath id={cl}>
           <path d={`M${lx-7.5},${ey} Q${lx},${ey-6.5} ${lx+7.5},${ey} Q${lx+4},${ey+5} ${lx},${ey+5} Q${lx-4},${ey+5} ${lx-7.5},${ey}Z`} />
         </clipPath>
@@ -104,40 +105,35 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
         </clipPath>
       </defs>
 
-      {/* ── Clothing / shoulders ── */}
-      <path
-        d={isMale
-          ? 'M0,100 L6,72 Q18,62 50,59 Q82,62 94,72 L100,100Z'
-          : 'M5,100 L11,76 Q20,67 50,64 Q80,67 89,76 L95,100Z'}
-        fill="#181412"
-      />
-
-      {/* ── Neck ── */}
-      <rect x="43" y="83" width="14" height="11" rx="2" fill={skinTone} />
-
-      {/* ── Ears (behind face oval) ── */}
-      <ellipse cx={elx} cy="52" rx="4.5" ry="7"   fill={skinTone} />
-      <ellipse cx={erx} cy="52" rx="4.5" ry="7"   fill={skinTone} />
-      <ellipse cx={elx + 1.5} cy="52" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
-      <ellipse cx={erx - 1.5} cy="52" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
+      {/* ── Ears (behind face) ── */}
+      <ellipse cx={elx} cy="50" rx="4.5" ry="7"   fill={skinTone} />
+      <ellipse cx={erx} cy="50" rx="4.5" ry="7"   fill={skinTone} />
+      <ellipse cx={elx + 1.5} cy="50" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
+      <ellipse cx={erx - 1.5} cy="50" rx="2" ry="4.5" fill={skinDark} opacity="0.28" />
 
       {/* ── Face oval ── */}
-      <ellipse cx="50" cy="53" rx={frx} ry="33" fill={skinTone} />
+      <ellipse cx="50" cy="50" rx={frx} ry="38" fill={skinTone} />
 
-      {/* ── Hair ── */}
-      {isMale && hairStyle === 0 && <path d="M22,38 Q20,10 50,7 Q80,10 78,38 Q76,20 50,18 Q24,20 22,38Z" fill={hairColor} />}
-      {isMale && hairStyle === 1 && <path d="M21,40 Q19,8 50,5 Q81,8 79,40 Q77,20 50,18 Q23,20 21,40Z" fill={hairColor} />}
-      {isMale && hairStyle === 2 && <path d="M22,40 Q18,8 50,5 Q82,8 78,40 Q78,20 60,17 Q40,17 22,40Z" fill={hairColor} />}
-      {!isMale && hairStyle === 0 && <path d="M26,36 Q24,10 50,7 Q76,10 74,36 Q72,20 50,18 Q28,20 26,36Z" fill={hairColor} />}
+      {/* ── Hair ──────────────────────────────────────────────────────────────
+           Inner edges follow the face oval contour at each y level so there
+           is no gap between hair and skull:
+             y=38 → face edge x≈24/76 (M) or 26/74 (F)
+             y=28 → face edge x≈27/73 (M) or 30/70 (F)
+             y=22 → face edge x≈31/69 (M) or 33/67 (F)
+             y=18 → face edge x≈35/65 (M) or 37/63 (F)           ── */}
+      {isMale && hairStyle === 0 && <path d="M24,38 Q20,8 50,3 Q80,8 76,38 Q73,28 69,22 Q62,18 50,18 Q38,18 31,22 Q27,28 24,38Z" fill={hairColor} />}
+      {isMale && hairStyle === 1 && <path d="M23,40 Q19,7 50,2 Q81,7 77,40 Q74,28 70,22 Q62,18 50,18 Q38,18 30,22 Q26,28 23,40Z" fill={hairColor} />}
+      {isMale && hairStyle === 2 && <path d="M23,40 Q18,7 50,2 Q82,7 77,40 Q78,28 72,22 Q64,18 50,19 Q36,18 28,22 Q22,28 23,40Z" fill={hairColor} />}
+      {!isMale && hairStyle === 0 && <path d="M26,38 Q22,8 50,3 Q78,8 74,38 Q71,28 67,22 Q60,18 50,18 Q40,18 33,22 Q29,28 26,38Z" fill={hairColor} />}
       {!isMale && hairStyle === 1 && <>
-        <path d="M25,37 Q23,8 50,5 Q77,8 75,37 Q73,20 50,18 Q27,20 25,37Z" fill={hairColor} />
-        <path d="M25,37 Q20,58 22,84 Q27,60 25,37Z" fill={hairColor} />
-        <path d="M75,37 Q80,58 78,84 Q73,60 75,37Z" fill={hairColor} />
+        <path d="M26,38 Q22,7 50,2 Q78,7 74,38 Q71,28 67,22 Q60,18 50,18 Q40,18 33,22 Q29,28 26,38Z" fill={hairColor} />
+        <path d="M26,38 Q22,56 24,80 Q28,58 26,38Z" fill={hairColor} />
+        <path d="M74,38 Q78,56 76,80 Q72,58 74,38Z" fill={hairColor} />
       </>}
       {!isMale && hairStyle === 2 && <>
-        <path d="M24,38 Q22,7 50,5 Q78,7 76,38 Q74,20 50,18 Q26,20 24,38Z" fill={hairColor} />
-        <path d="M24,38 Q19,62 21,88 Q26,65 24,38Z" fill={hairColor} />
-        <path d="M76,38 Q81,62 79,88 Q74,65 76,38Z" fill={hairColor} />
+        <path d="M25,40 Q21,7 50,2 Q79,7 75,40 Q72,28 67,22 Q60,18 50,18 Q40,18 33,22 Q28,28 25,40Z" fill={hairColor} />
+        <path d="M25,40 Q20,58 22,82 Q26,60 25,40Z" fill={hairColor} />
+        <path d="M75,40 Q80,58 78,82 Q74,60 75,40Z" fill={hairColor} />
       </>}
 
       {/* ── Eyebrows ── */}
@@ -146,14 +142,13 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
       <path d={`M${ex-6},${bry+2} Q${ex},${bry} ${ex+7},${bry+2}`}
         stroke={hairColor} strokeWidth="2.2" fill="none" strokeLinecap="round" />
 
-      {/* ── Left eye: clipped sclera → iris → pupil → highlight ── */}
+      {/* ── Left eye ── */}
       <g clipPath={`url(#${cl})`}>
         <ellipse cx={lx} cy={ey} rx="7.5" ry="5"   fill="#ede8dc" />
         <ellipse cx={lx} cy={ey} rx="4.5" ry="4.5" fill={eyeColor} />
         <circle  cx={lx} cy={ey} r="2.8"            fill="#080604" />
         <circle  cx={lx - 1.5} cy={ey - 1.2} r="1.1" fill="rgba(255,255,255,0.9)" />
       </g>
-      {/* Upper / lower eyelid lines */}
       <path d={`M${lx-7.5},${ey} Q${lx},${ey-7} ${lx+7.5},${ey}`}
         stroke="#120a04" strokeWidth="1.4" fill="none" strokeLinecap="round" />
       <path d={`M${lx-6},${ey} Q${lx},${ey+4.5} ${lx+6},${ey}`}
@@ -172,31 +167,26 @@ const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({
         stroke={skinDark} strokeWidth="0.8" fill="none" strokeLinecap="round" opacity="0.5" />
 
       {/* ── Nose ── */}
-      {/* Bridge columns */}
-      <path d="M47,51 Q46,57 44,63" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
-      <path d="M53,51 Q54,57 56,63" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
-      {/* Nostril shapes */}
-      <path d="M44,63 Q40,66 42,69 Q45,67 44,63" fill={skinDark} opacity="0.33" />
-      <path d="M56,63 Q60,66 58,69 Q55,67 56,63" fill={skinDark} opacity="0.33" />
-      {/* Nose-tip arc */}
-      <path d="M43,64 Q50,67 57,64" stroke={skinDark} strokeWidth="0.9" fill="none" strokeLinecap="round" opacity="0.40" />
+      <path d="M47,48 Q46,54 44,61" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
+      <path d="M53,48 Q54,54 56,61" stroke={skinDark} strokeWidth="1"   fill="none" strokeLinecap="round" opacity="0.5" />
+      <path d="M44,61 Q40,65 42,67 Q45,65 44,61" fill={skinDark} opacity="0.33" />
+      <path d="M56,61 Q60,65 58,67 Q55,65 56,61" fill={skinDark} opacity="0.33" />
+      <path d="M43,62 Q50,65 57,62" stroke={skinDark} strokeWidth="0.9" fill="none" strokeLinecap="round" opacity="0.40" />
 
-      {/* ── Subtle cheek blush (female) ── */}
+      {/* ── Cheek blush (female only) ── */}
       {!isMale && <>
-        <ellipse cx="33" cy="57" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
-        <ellipse cx="67" cy="57" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
+        <ellipse cx="33" cy="55" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
+        <ellipse cx="67" cy="55" rx="8" ry="4.5" fill="#c06060" opacity="0.09" />
       </>}
 
       {/* ── Mouth ── */}
-      {/* Cupid's bow upper lip */}
       <path
-        d={isMale ? 'M40,73 Q43,70 50,72 Q57,70 60,73' : 'M41,73 Q44,70 50,72 Q56,70 59,73'}
+        d={isMale ? 'M40,70 Q43,67 50,69 Q57,67 60,70' : 'M41,70 Q44,67 50,69 Q56,67 59,70'}
         stroke={lipColor} strokeWidth="1.1" fill="none" strokeLinecap="round" opacity="0.9"
       />
-      {/* Lower lip fill */}
       <path
-        d={isMale ? 'M40,73 Q50,78 60,73 Q57,81 50,81 Q43,81 40,73Z'
-                  : 'M41,73 Q50,77 59,73 Q56,80 50,80.5 Q44,80 41,73Z'}
+        d={isMale ? 'M40,70 Q50,76 60,70 Q57,78 50,78 Q43,78 40,70Z'
+                  : 'M41,70 Q50,75 59,70 Q56,77 50,77 Q44,77 41,70Z'}
         fill={lipColor} opacity="0.42"
       />
 
