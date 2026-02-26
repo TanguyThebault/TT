@@ -9,6 +9,7 @@ import SurvivorRoster from './game/SurvivorRoster';
 import ExpeditionLauncher from './game/ExpeditionLauncher';
 import ActiveExpeditions from './game/ActiveExpeditions';
 import CraftingPanel from './game/CraftingPanel';
+import ExpeditionMap from './game/ExpeditionMap';
 import InventoryPanel from './game/InventoryPanel';
 import GameLog from './game/GameLog';
 import ExpeditionResults from './game/ExpeditionResults';
@@ -76,7 +77,7 @@ const AppLayout: React.FC = () => {
             <div className="lg:col-span-2">
               {activeTab === 'base' && <BaseBuildings />}
               {activeTab === 'survivors' && <SurvivorRoster />}
-              {activeTab === 'expeditions' && <ExpeditionLauncher />}
+              {activeTab === 'expeditions' && <ExpeditionMap />}
               {activeTab === 'crafting' && <CraftingPanel />}
             </div>
 
