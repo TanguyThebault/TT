@@ -224,8 +224,8 @@ export const ZONES: ZoneDef[] = [
     name: 'Banlieue Dévastée',
     description: 'Quartiers résidentiels en ruines. Faible danger, ressources basiques.',
     icon: 'Home',
-    baseDuration: 120, // 2 min for testing (would be 30min in prod)
-    dangerLevel: 1,
+    baseDuration: 240, // 4 min
+    dangerLevel: 2,
     lootTable: [
       { type: 'resource', id: 'food', name: 'Nourriture', minQty: 5, maxQty: 15, chance: 0.9 },
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 3, maxQty: 10, chance: 0.8 },
@@ -239,8 +239,8 @@ export const ZONES: ZoneDef[] = [
     name: 'Ruines Urbaines',
     description: 'Centre-ville effondré. Danger modéré, bonnes ressources.',
     icon: 'Building2',
-    baseDuration: 300, // 5 min
-    dangerLevel: 2,
+    baseDuration: 600, // 10 min
+    dangerLevel: 3,
     requiredBuildingLevel: { buildingId: 'radio', level: 1 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 8, maxQty: 25, chance: 0.9 },
@@ -255,8 +255,8 @@ export const ZONES: ZoneDef[] = [
     name: 'Base Militaire',
     description: 'Installation militaire abandonnée. Danger élevé, équipement rare.',
     icon: 'Shield',
-    baseDuration: 600, // 10 min
-    dangerLevel: 4,
+    baseDuration: 1200, // 20 min
+    dangerLevel: 5,
     requiredBuildingLevel: { buildingId: 'radio', level: 2 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 10, maxQty: 30, chance: 0.8 },
@@ -271,7 +271,7 @@ export const ZONES: ZoneDef[] = [
     name: 'Fréquence Inconnue',
     description: 'Un signal radio stable capté sur une fréquence inutilisée. Rythmé, structuré — pas un accident. La zone de transmission semble dégagée, aucune menace détectée dans le périmètre.',
     icon: 'Radio',
-    baseDuration: 240, // 4 min
+    baseDuration: 480, // 8 min
     dangerLevel: 0,
     requiredBuildingLevel: { buildingId: 'radio', level: 2 },
     lootTable: [],
@@ -281,8 +281,8 @@ export const ZONES: ZoneDef[] = [
     name: 'Hôpital Abandonné',
     description: 'Ancien hôpital. Danger modéré, médicaments abondants.',
     icon: 'Cross',
-    baseDuration: 420, // 7 min
-    dangerLevel: 3,
+    baseDuration: 840, // 14 min
+    dangerLevel: 4,
     requiredBuildingLevel: { buildingId: 'radio', level: 3 },
     lootTable: [
       { type: 'resource', id: 'medicine', name: 'Médicaments', minQty: 10, maxQty: 30, chance: 0.9 },
@@ -296,8 +296,8 @@ export const ZONES: ZoneDef[] = [
     name: 'Complexe Industriel',
     description: 'Usines et entrepôts. Danger élevé, matériaux en masse.',
     icon: 'Factory',
-    baseDuration: 540, // 9 min
-    dangerLevel: 4,
+    baseDuration: 1080, // 18 min
+    dangerLevel: 5,
     requiredBuildingLevel: { buildingId: 'radio', level: 4 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 15, maxQty: 40, chance: 0.95 },
@@ -312,7 +312,7 @@ export const ZONES: ZoneDef[] = [
     name: 'Laboratoire Secret',
     description: 'Installation de recherche secrète. Danger extrême, trésors technologiques.',
     icon: 'FlaskConical',
-    baseDuration: 900, // 15 min
+    baseDuration: 1800, // 30 min
     dangerLevel: 5,
     requiredBuildingLevel: { buildingId: 'radio', level: 5 },
     lootTable: [
