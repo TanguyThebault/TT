@@ -7,6 +7,7 @@ import {
   SURVIVOR_FIRST_NAMES_MALE, SURVIVOR_FIRST_NAMES_FEMALE, SURVIVOR_LAST_NAMES, SURVIVOR_TRAITS,
   getUpgradeCost, getStorageCapacity, getExpeditionDurationMultiplier,
   getDangerReduction, getMaxSurvivors,
+  getRecycleMinEngineering, getRecycleYield, getRecycleDuration,
   type EquipmentDef,
 } from '@/data/gameData';
 
@@ -20,8 +21,18 @@ export interface Survivor {
   health: number;
   maxHealth: number;
   equipment: { weapon: EquipmentDef | null; armor: EquipmentDef | null; backpack: EquipmentDef | null };
-  status: 'available' | 'expedition' | 'injured';
+  status: 'available' | 'expedition' | 'injured' | 'recycling';
   expeditionId?: string;
+  recycleTaskId?: string;
+}
+
+export interface RecycleTask {
+  id: string;
+  survivorId: string;
+  item: EquipmentDef;
+  startTime: number;
+  duration: number;
+  engineeringLevel: number;
 }
 
 export interface Expedition {
@@ -47,6 +58,7 @@ export interface GameState {
   survivors: Survivor[];
   expeditions: Expedition[];
   inventory: EquipmentDef[];
+  recyclingTasks: RecycleTask[];
   gameLog: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[];
   pendingResults: Expedition | null;
   initialized: boolean;
@@ -64,10 +76,21 @@ type GameAction =
   | { type: 'CRAFT_ITEM'; itemId: string }
   | { type: 'HEAL_SURVIVOR'; survivorId: string }
   | { type: 'ADD_LOG'; message: string; logType: 'info' | 'success' | 'danger' | 'warning' }
+  | { type: 'START_RECYCLE'; survivorId: string; inventoryIndex: number }
+  | { type: 'CANCEL_RECYCLE'; taskId: string }
+  | { type: 'COMPLETE_RECYCLE'; taskId: string }
   | { type: 'TICK' };
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function getEffectiveEngineering(survivor: Survivor): number {
+  let total = survivor.skills.engineering;
+  for (const eq of Object.values(survivor.equipment)) {
+    if (eq?.stats.engineering) total += eq.stats.engineering;
+  }
+  return total;
 }
 
 function generateSurvivor(): Survivor {
@@ -157,8 +180,19 @@ function clampResources(resources: Record<string, number>, storageLevel: number)
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
-    case 'INIT_GAME':
-      return { ...action.state, initialized: true };
+    case 'INIT_GAME': {
+      const s: GameState = { ...action.state, initialized: true, recyclingTasks: action.state.recyclingTasks || [] };
+      // Repair survivors stuck in 'recycling' with no corresponding task (corrupted/old saves)
+      const taskSurvivorIds = new Set(s.recyclingTasks.map(t => t.survivorId));
+      return {
+        ...s,
+        survivors: s.survivors.map(sv =>
+          sv.status === 'recycling' && !taskSurvivorIds.has(sv.id)
+            ? { ...sv, status: 'available' as const, recycleTaskId: undefined }
+            : sv
+        ),
+      };
+    }
     case 'UPGRADE_BUILDING': {
       const bDef = BUILDINGS.find(b => b.id === action.buildingId);
       if (!bDef) return state;
@@ -246,6 +280,63 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'ADD_LOG':
       return { ...state, gameLog: [{ id: uuidv4(), message: action.message, time: Date.now(), type: action.logType }, ...state.gameLog.slice(0, 49)] };
+    case 'START_RECYCLE': {
+      const survivor = state.survivors.find(s => s.id === action.survivorId);
+      if (!survivor || survivor.status !== 'available') return state;
+      const item = state.inventory[action.inventoryIndex];
+      if (!item) return state;
+      const engLevel = getEffectiveEngineering(survivor);
+      if (engLevel < getRecycleMinEngineering(item.tier)) return state;
+      const taskId = uuidv4();
+      const task: RecycleTask = {
+        id: taskId, survivorId: survivor.id, item,
+        startTime: Date.now(), duration: getRecycleDuration(item.tier), engineeringLevel: engLevel,
+      };
+      const newInventory = [...state.inventory];
+      newInventory.splice(action.inventoryIndex, 1);
+      const newSurvivors = state.survivors.map(s =>
+        s.id === survivor.id ? { ...s, status: 'recycling' as const, recycleTaskId: taskId } : s
+      );
+      return {
+        ...state, inventory: newInventory, survivors: newSurvivors,
+        recyclingTasks: [...state.recyclingTasks, task],
+        gameLog: [{ id: uuidv4(), message: `${survivor.name} commence à recycler ${item.name}.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'CANCEL_RECYCLE': {
+      const task = state.recyclingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const newSurvivors = state.survivors.map(s =>
+        s.id === task.survivorId ? { ...s, status: 'available' as const, recycleTaskId: undefined } : s
+      );
+      return {
+        ...state,
+        recyclingTasks: state.recyclingTasks.filter(t => t.id !== action.taskId),
+        survivors: newSurvivors,
+        inventory: [...state.inventory, task.item],
+        gameLog: [{ id: uuidv4(), message: `Recyclage de ${task.item.name} annulé. Objet rendu à l'inventaire.`, time: Date.now(), type: 'warning' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'COMPLETE_RECYCLE': {
+      const task = state.recyclingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const yields = getRecycleYield(task.item, task.engineeringLevel);
+      const storageLevel = state.buildings['storage'] || 0;
+      const newRes = { ...state.resources };
+      for (const [res, qty] of Object.entries(yields)) { newRes[res] = (newRes[res] || 0) + qty; }
+      const survivor = state.survivors.find(s => s.id === task.survivorId);
+      const newSurvivors = state.survivors.map(s =>
+        s.id === task.survivorId ? { ...s, status: 'available' as const, recycleTaskId: undefined } : s
+      );
+      const yieldStr = Object.entries(yields).map(([, q]) => q).reduce((a, b) => a + b, 0);
+      return {
+        ...state,
+        resources: clampResources(newRes, storageLevel),
+        recyclingTasks: state.recyclingTasks.filter(t => t.id !== action.taskId),
+        survivors: newSurvivors,
+        gameLog: [{ id: uuidv4(), message: `${survivor?.name || 'Survivant'} a recyclé ${task.item.name} (+${yieldStr} ressources).`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
     case 'TICK': {
       const infirmaryLevel = state.buildings['infirmary'] || 0;
       if (infirmaryLevel > 0) {
@@ -269,7 +360,7 @@ function createInitialState(): GameState {
   for (let i = 0; i < 4; i++) survivors.push(generateSurvivor());
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
-    buildings: {}, survivors, expeditions: [],
+    buildings: {}, survivors, expeditions: [], recyclingTasks: [],
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
     pendingResults: null, initialized: false,
@@ -290,6 +381,8 @@ interface GameContextType {
   viewResults: (expedition: Expedition | null) => void;
   collectResults: () => void;
   resetGame: () => void;
+  startRecycle: (survivorId: string, inventoryIndex: number) => void;
+  cancelRecycle: (taskId: string) => void;
   // Auth
   user: User | null;
   authLoading: boolean;
@@ -401,6 +494,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Check recycling task completion every second
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const task of stateRef.current.recyclingTasks) {
+        if (now >= task.startTime + task.duration * 1000) {
+          dispatch({ type: 'COMPLETE_RECYCLE', taskId: task.id });
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
@@ -455,12 +561,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const viewResults = useCallback((expedition: Expedition | null) => { dispatch({ type: 'VIEW_RESULTS', expedition }); }, []);
   const collectResults = useCallback(() => { dispatch({ type: 'COLLECT_RESULTS' }); }, []);
   const resetGame = useCallback(() => { localStorage.removeItem(SAVE_KEY); dispatch({ type: 'INIT_GAME', state: createInitialState() }); }, []);
+  const startRecycle = useCallback((survivorId: string, inventoryIndex: number) => { dispatch({ type: 'START_RECYCLE', survivorId, inventoryIndex }); }, []);
+  const cancelRecycle = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_RECYCLE', taskId }); }, []);
 
   return (
     <GameContext.Provider value={{
       state, dispatch, upgradeBuilding, launchExpedition,
       equipItem, unequipItem, craftItem, healSurvivor,
       viewResults, collectResults, resetGame,
+      startRecycle, cancelRecycle,
       user, authLoading, signIn, signUp, signOut,
       cloudSave, cloudLoad, cloudSaving, lastCloudSave,
     }}>

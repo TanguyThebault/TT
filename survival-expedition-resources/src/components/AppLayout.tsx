@@ -13,6 +13,7 @@ import ExpeditionMap from './game/ExpeditionMap';
 import InventoryPanel from './game/InventoryPanel';
 import GameLog from './game/GameLog';
 import CampLife from './game/CampLife';
+import TasksPanel from './game/TasksPanel';
 import ExpeditionResults from './game/ExpeditionResults';
 
 const AppLayout: React.FC = () => {
@@ -139,6 +140,7 @@ const AppLayout: React.FC = () => {
               {activeTab === 'survivors'   && <SurvivorRoster />}
               {activeTab === 'expeditions' && <ExpeditionMap />}
               {activeTab === 'crafting'    && <CraftingPanel />}
+              {activeTab === 'tasks'       && <TasksPanel />}
             </div>
 
             {/* Sidebar */}

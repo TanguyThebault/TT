@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  Warehouse, Users, MapPin, Hammer, ScrollText
+  Warehouse, Users, MapPin, Hammer, ClipboardList,
 } from 'lucide-react';
 
-export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting';
+export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting' | 'tasks';
 
 interface TabNavigationProps {
   activeTab: GameTab;
@@ -13,10 +13,11 @@ interface TabNavigationProps {
 }
 
 const tabs = [
-  { id: 'base' as GameTab, label: 'Base', icon: <Warehouse className="w-4 h-4" /> },
-  { id: 'survivors' as GameTab, label: 'Survivants', icon: <Users className="w-4 h-4" /> },
+  { id: 'base' as GameTab,        label: 'Base',        icon: <Warehouse className="w-4 h-4" /> },
+  { id: 'survivors' as GameTab,   label: 'Survivants',  icon: <Users className="w-4 h-4" /> },
   { id: 'expeditions' as GameTab, label: 'Expéditions', icon: <MapPin className="w-4 h-4" /> },
-  { id: 'crafting' as GameTab, label: 'Fabrication', icon: <Hammer className="w-4 h-4" /> },
+  { id: 'crafting' as GameTab,    label: 'Fabrication', icon: <Hammer className="w-4 h-4" /> },
+  { id: 'tasks' as GameTab,       label: 'Tâches',      icon: <ClipboardList className="w-4 h-4" /> },
 ];
 
 const TabNavigation: React.FC<TabNavigationProps> = ({ activeTab, onTabChange, activeExpeditions, completedExpeditions }) => {

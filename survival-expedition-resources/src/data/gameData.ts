@@ -403,3 +403,31 @@ export function getInventoryCapacity(armoryLevel: number): number {
   const caps = [20, 25, 32, 40, 50, 65];
   return caps[Math.min(armoryLevel, 5)];
 }
+
+/** Niveau d'ingénierie minimum pour recycler un objet selon son tier. */
+export function getRecycleMinEngineering(tier: number): number {
+  return tier * 2;
+}
+
+/** Durée du recyclage en secondes selon le tier de l'objet. */
+export function getRecycleDuration(tier: number): number {
+  return tier * 60;
+}
+
+/**
+ * Calcule le rendement de recyclage d'un objet.
+ * Basé sur la recette de fabrication : taux de récupération entre 30 % (niveau minimal)
+ * et 80 % (niveau max), +5 % par niveau d'ingénierie au-dessus du minimum.
+ */
+export function getRecycleYield(item: EquipmentDef, engineeringLevel: number): Record<string, number> {
+  const recipe = CRAFT_RECIPES[item.id];
+  if (!recipe) return { scrap: Math.max(1, Math.floor(item.tier * engineeringLevel * 0.3)) };
+  const minEng = getRecycleMinEngineering(item.tier);
+  const recoveryRate = Math.min(0.80, 0.30 + Math.max(0, engineeringLevel - minEng) * 0.05);
+  const result: Record<string, number> = {};
+  for (const [res, amount] of Object.entries(recipe)) {
+    const qty = Math.floor(amount * recoveryRate);
+    if (qty > 0) result[res] = qty;
+  }
+  return result;
+}
