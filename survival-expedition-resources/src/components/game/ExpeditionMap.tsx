@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ZONES, getExpeditionDurationMultiplier, getDangerReduction } from '@/data/gameData';
+import { ZONES, BUILDINGS, RESOURCES, getExpeditionDurationMultiplier, getDangerReduction, getUpgradeCost, type ZoneDef, type BuildingDef } from '@/data/gameData';
 import SurvivorCard from './SurvivorCard';
-import { AlertTriangle, Clock, Rocket, Users } from 'lucide-react';
+import { AlertTriangle, Clock, Rocket, Users, Lock, Sword, Search, Shield } from 'lucide-react';
 
 // ── Map layout ────────────────────────────────────────────────────────────────
 const CX = 400, CY = 280;
@@ -44,6 +44,81 @@ function formatTime(seconds: number): string {
   return `${s}s`;
 }
 
+// ── Locked zone detail panel ───────────────────────────────────────────────────
+interface LockedZonePanelProps {
+  zone: ZoneDef;
+  bld: BuildingDef | undefined;
+  req: { buildingId: string; level: number };
+  currentBldLevel: number;
+  levelsNeeded: number[];
+  allCosts: Record<string, number>;
+  unlockedZones: ZoneDef[];
+  resources: Record<string, number>;
+  onClose: () => void;
+}
+
+const LockedZonePanel: React.FC<LockedZonePanelProps> = ({
+  zone, bld, req, currentBldLevel, allCosts, resources, onClose,
+}) => {
+  const meta = ZONE_META[zone.id];
+  return (
+    <div className="bg-zinc-900/90 rounded-lg p-4 space-y-3 border border-zinc-700/50"
+      style={meta ? { borderColor: `${meta.strokeColor}33` } : undefined}>
+
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <Lock className="w-4 h-4 text-zinc-500 shrink-0"/>
+          <div>
+            <h3 className="font-bold text-zinc-400 font-mono tracking-wide">{zone.name}</h3>
+            <p className="text-xs text-zinc-600 mt-0.5">{zone.description}</p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-zinc-600 hover:text-zinc-300 transition-colors ml-4 shrink-0 text-xs font-mono"
+        >✕</button>
+      </div>
+
+      <div className="bg-zinc-800/60 rounded p-3 border border-zinc-700/40 space-y-1.5">
+        <p className="text-xs font-mono text-zinc-400">
+          <span className="text-amber-500/80">Condition de déblocage :</span>
+          {' '}{bld?.name ?? req.buildingId} niveau {req.level}
+        </p>
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span className="text-zinc-500">Niveau actuel :</span>
+          <span className={currentBldLevel >= req.level ? 'text-green-400' : 'text-red-400'}>
+            {currentBldLevel}
+          </span>
+          <span className="text-zinc-600">/ {req.level} requis</span>
+        </div>
+      </div>
+
+      {Object.keys(allCosts).length > 0 && (
+        <div>
+          <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider mb-2">
+            Ressources nécessaires pour débloquer
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(allCosts).map(([resId, amount]) => {
+              const resDef = RESOURCES.find(r => r.id === resId);
+              const hasEnough = (resources[resId] || 0) >= amount;
+              return (
+                <span key={resId} className={`px-2 py-1 rounded text-xs font-mono border ${
+                  hasEnough
+                    ? 'bg-green-900/20 border-green-700/40 text-green-400'
+                    : 'bg-red-900/20 border-red-700/40 text-red-400'
+                }`}>
+                  {resDef?.name ?? resId} : {resources[resId] || 0}/{amount}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 const ExpeditionMap: React.FC = () => {
   const { state, launchExpedition, viewResults } = useGame();
@@ -62,12 +137,34 @@ const ExpeditionMap: React.FC = () => {
   const dangerReduction = getDangerReduction(watchtowerLevel);
 
   const availableSurvivors = state.survivors.filter(s => s.status === 'available');
+
+  // Team cumulative stats — mirrors the exact formulas in generateExpeditionResults
+  const selectedSurvivorObjects = state.survivors.filter(s => selectedSurvivors.includes(s.id));
+  const teamCombat = selectedSurvivorObjects.reduce((sum, s) =>
+    sum + s.skills.combat
+      + (s.equipment.weapon?.stats.combat || 0)
+      + (s.equipment.armor?.stats.combat  || 0), 0);
+  const teamScavenging = selectedSurvivorObjects.reduce((sum, s) =>
+    sum + s.skills.scavenging
+      + (s.equipment.backpack?.stats.scavenging || 0)
+      + (s.equipment.weapon?.stats.scavenging   || 0), 0);
+  const scavBonusPct = Math.round(teamScavenging * 5);
+  const avgArmorAbsorption = selectedSurvivorObjects.length > 0
+    ? Math.floor(
+        selectedSurvivorObjects.reduce((sum, s) =>
+          sum + Math.floor((s.equipment.armor?.stats.health || 0) * 0.3), 0)
+        / selectedSurvivorObjects.length
+      )
+    : 0;
   const activeExps    = state.expeditions.filter(e => !e.completed);
   const completedExps = state.expeditions.filter(e => e.completed);
 
   const selectedZone = selectedId ? (ZONES.find(z => z.id === selectedId) ?? null) : null;
   const selectedMeta = selectedId ? (ZONE_META[selectedId] ?? null)                : null;
   const selectedDur  = selectedZone ? Math.floor(selectedZone.baseDuration * durationMult) : 0;
+  const isSelectedLocked = selectedZone?.requiredBuildingLevel
+    ? (state.buildings[selectedZone.requiredBuildingLevel.buildingId] || 0) < selectedZone.requiredBuildingLevel.level
+    : false;
 
   const handleLaunch = () => {
     if (!selectedId || selectedSurvivors.length === 0) return;
@@ -199,8 +296,8 @@ const ExpeditionMap: React.FC = () => {
 
             return (
               <g key={`z-${z.id}`}
-                onClick={() => !locked && setSelectedId(selectedId === z.id ? null : z.id)}
-                style={{ cursor: locked ? 'default' : 'pointer' }}
+                onClick={() => setSelectedId(selectedId === z.id ? null : z.id)}
+                style={{ cursor: 'pointer' }}
               >
                 {/* Activity ring (animated dash when active) */}
                 {(hasActive || hasDone) && (
@@ -250,14 +347,23 @@ const ExpeditionMap: React.FC = () => {
 
                 {/* Zone name */}
                 <text x={pos.x} y={pos.y + 32} textAnchor="middle"
-                  fill={locked ? '#36363e' : sel ? '#fbbf24' : '#74748a'}
+                  fill={locked ? '#48485a' : sel ? '#fbbf24' : '#74748a'}
                   fontSize="8" fontFamily="monospace"
                   style={{ pointerEvents: 'none' }}>
                   {m.mapName}
                 </text>
 
-                {/* Duration */}
-                {!locked && (
+                {/* Unlock condition (locked) or duration (unlocked) */}
+                {locked && z.requiredBuildingLevel ? (() => {
+                  const bld = BUILDINGS.find(b => b.id === z.requiredBuildingLevel!.buildingId);
+                  return (
+                    <text x={pos.x} y={pos.y + 43} textAnchor="middle"
+                      fill={sel ? '#6060a0' : '#3e3e58'} fontSize="6.5" fontFamily="monospace"
+                      style={{ pointerEvents: 'none' }}>
+                      {bld?.name} Nv.{z.requiredBuildingLevel!.level}
+                    </text>
+                  );
+                })() : !locked && (
                   <text x={pos.x} y={pos.y + 43} textAnchor="middle"
                     fill="#36364a" fontSize="7" fontFamily="monospace"
                     style={{ pointerEvents: 'none' }}>
@@ -310,7 +416,36 @@ const ExpeditionMap: React.FC = () => {
       </div>
 
       {/* ── Zone detail & launch panel ───────────────────────────────────── */}
-      {selectedZone && selectedMeta && (
+      {selectedZone && selectedMeta && isSelectedLocked && (() => {
+        const req = selectedZone.requiredBuildingLevel!;
+        const bld = BUILDINGS.find(b => b.id === req.buildingId)!;
+        const currentBldLevel = state.buildings[req.buildingId] || 0;
+        const levelsNeeded = Array.from({ length: req.level - currentBldLevel }, (_, i) => currentBldLevel + i);
+        const allCosts: Record<string, number> = {};
+        levelsNeeded.forEach(lvl => {
+          const c = bld ? getUpgradeCost(bld, lvl) : {};
+          Object.entries(c).forEach(([k, v]) => { allCosts[k] = (allCosts[k] || 0) + v; });
+        });
+        const unlockedZones = ZONES.filter(z => {
+          const r = z.requiredBuildingLevel;
+          return r ? (state.buildings[r.buildingId] || 0) >= r.level : true;
+        });
+        return (
+          <LockedZonePanel
+            zone={selectedZone}
+            bld={bld}
+            req={req}
+            currentBldLevel={currentBldLevel}
+            levelsNeeded={levelsNeeded}
+            allCosts={allCosts}
+            unlockedZones={unlockedZones}
+            resources={state.resources}
+            onClose={() => setSelectedId(null)}
+          />
+        );
+      })()}
+
+      {selectedZone && selectedMeta && !isSelectedLocked && (
         <div className="bg-zinc-900/90 rounded-lg p-4 space-y-3 border"
           style={{ borderColor: `${selectedMeta.strokeColor}55` }}>
 
@@ -364,20 +499,63 @@ const ExpeditionMap: React.FC = () => {
               </p>
             ) : (
               <div className="space-y-2">
-                {availableSurvivors.map(s => (
-                  <SurvivorCard
-                    key={s.id} survivor={s} selectable
-                    selected={selectedSurvivors.includes(s.id)}
-                    onToggleSelect={() =>
-                      setSelectedSurvivors(prev =>
-                        prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
-                      )
-                    }
-                  />
+                {availableSurvivors.map((s, index) => (
+                  <div
+                    key={s.id}
+                    className="wl-roster-in relative"
+                    style={{ animationDelay: `${index * 38}ms` }}
+                  >
+                    <div className="wl-roster-sweep" style={{ animationDelay: `${index * 38}ms` }} />
+                    <SurvivorCard
+                      survivor={s} selectable
+                      selected={selectedSurvivors.includes(s.id)}
+                      onToggleSelect={() =>
+                        setSelectedSurvivors(prev =>
+                          prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
+                        )
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Team cumulative stats */}
+          {selectedSurvivors.length > 0 && (
+            <div className="bg-zinc-800/40 border border-zinc-700/40 rounded-lg p-3 space-y-2">
+              <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
+                Équipe sélectionnée — {selectedSurvivors.length} survivant{selectedSurvivors.length > 1 ? 's' : ''}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center gap-0.5 bg-zinc-900/50 rounded p-2">
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-red-400/80">
+                    <Sword className="w-3 h-3"/>Combat
+                  </div>
+                  <span className="text-base font-bold font-mono text-red-400">{teamCombat}</span>
+                  <span className="text-[9px] font-mono text-zinc-600">résistance attaque</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5 bg-zinc-900/50 rounded p-2">
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-green-400/80">
+                    <Search className="w-3 h-3"/>Pillage
+                  </div>
+                  <span className="text-base font-bold font-mono text-green-400">{teamScavenging}</span>
+                  <span className="text-[9px] font-mono text-amber-400">+{scavBonusPct}% butin</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5 bg-zinc-900/50 rounded p-2">
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-blue-400/80">
+                    <Shield className="w-3 h-3"/>Armure
+                  </div>
+                  <span className="text-base font-bold font-mono text-blue-400">
+                    {avgArmorAbsorption > 0 ? `-${avgArmorAbsorption}` : '—'}
+                  </span>
+                  <span className="text-[9px] font-mono text-zinc-600">
+                    {avgArmorAbsorption > 0 ? 'dmg/surv. moy.' : 'aucune armure'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             onClick={handleLaunch}

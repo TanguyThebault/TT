@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import {
   BUILDINGS, ZONES, ALL_EQUIPMENT, CRAFT_RECIPES,
-  SURVIVOR_FIRST_NAMES, SURVIVOR_LAST_NAMES, SURVIVOR_TRAITS,
+  SURVIVOR_FIRST_NAMES_MALE, SURVIVOR_FIRST_NAMES_FEMALE, SURVIVOR_LAST_NAMES, SURVIVOR_TRAITS,
   getUpgradeCost, getStorageCapacity, getExpeditionDurationMultiplier,
   getDangerReduction, getMaxSurvivors,
   type EquipmentDef,
@@ -14,6 +14,7 @@ import {
 export interface Survivor {
   id: string;
   name: string;
+  gender: 'male' | 'female';
   trait: string;
   skills: { combat: number; scavenging: number; medical: number; engineering: number };
   health: number;
@@ -70,7 +71,9 @@ function randomInt(min: number, max: number): number {
 }
 
 function generateSurvivor(): Survivor {
-  const firstName = SURVIVOR_FIRST_NAMES[randomInt(0, SURVIVOR_FIRST_NAMES.length - 1)];
+  const gender: 'male' | 'female' = Math.random() < 0.5 ? 'male' : 'female';
+  const namePool = gender === 'male' ? SURVIVOR_FIRST_NAMES_MALE : SURVIVOR_FIRST_NAMES_FEMALE;
+  const firstName = namePool[randomInt(0, namePool.length - 1)];
   const lastName = SURVIVOR_LAST_NAMES[randomInt(0, SURVIVOR_LAST_NAMES.length - 1)];
   const trait = SURVIVOR_TRAITS[randomInt(0, SURVIVOR_TRAITS.length - 1)];
   const baseSkill = () => randomInt(1, 5);
@@ -82,7 +85,7 @@ function generateSurvivor(): Survivor {
   if (trait === 'Tacticien') { skills.combat += 1; skills.scavenging += 1; skills.medical += 1; skills.engineering += 1; }
   if (trait === 'Survivaliste') { skills.combat += 2; skills.scavenging += 2; }
   return {
-    id: uuidv4(), name: `${firstName} ${lastName}`, trait, skills,
+    id: uuidv4(), name: `${firstName} ${lastName}`, gender, trait, skills,
     health: 100, maxHealth: 100,
     equipment: { weapon: null, armor: null, backpack: null },
     status: 'available',
@@ -385,15 +388,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(tickRef.current);
   }, []);
 
-  // Check expedition completion
+  // Check expedition completion every second (stateRef avoids stale closure)
   useEffect(() => {
-    const now = Date.now();
-    for (const exp of state.expeditions) {
-      if (!exp.completed && now >= exp.startTime + exp.duration * 1000) {
-        dispatch({ type: 'COMPLETE_EXPEDITION', expeditionId: exp.id });
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const exp of stateRef.current.expeditions) {
+        if (!exp.completed && now >= exp.startTime + exp.duration * 1000) {
+          dispatch({ type: 'COMPLETE_EXPEDITION', expeditionId: exp.id });
+        }
       }
-    }
-  }, [state.expeditions]);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

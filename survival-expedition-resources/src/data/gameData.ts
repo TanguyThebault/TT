@@ -220,6 +220,7 @@ export const ZONES: ZoneDef[] = [
       { type: 'resource', id: 'food', name: 'Nourriture', minQty: 5, maxQty: 15, chance: 0.9 },
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 3, maxQty: 10, chance: 0.8 },
       { type: 'resource', id: 'materials', name: 'Matériaux', minQty: 2, maxQty: 8, chance: 0.6 },
+      { type: 'resource', id: 'electronics', name: 'Électronique', minQty: 1, maxQty: 3, chance: 0.4 },
       { type: 'equipment', id: 'pipe_weapon', name: 'Tuyau en Plomb', minQty: 1, maxQty: 1, chance: 0.15 },
     ],
   },
@@ -347,9 +348,17 @@ export const CRAFT_RECIPES: Record<string, Record<string, number>> = {
   quantum_pack: { electronics: 60, materials: 40, scrap: 30 },
 };
 
+export const SURVIVOR_FIRST_NAMES_MALE = [
+  'Marcus', 'Viktor', 'Axel', 'Dante', 'Rook', 'Finn', 'Kael',
+];
+
+export const SURVIVOR_FIRST_NAMES_FEMALE = [
+  'Elena', 'Jade', 'Nadia', 'Mira', 'Sasha', 'Zara', 'Lyra', 'Nova',
+];
+
 export const SURVIVOR_FIRST_NAMES = [
-  'Elena', 'Marcus', 'Jade', 'Viktor', 'Nadia', 'Axel', 'Mira', 'Dante',
-  'Sasha', 'Rook', 'Zara', 'Finn', 'Lyra', 'Kael', 'Nova',
+  ...SURVIVOR_FIRST_NAMES_MALE,
+  ...SURVIVOR_FIRST_NAMES_FEMALE,
 ];
 
 export const SURVIVOR_LAST_NAMES = [

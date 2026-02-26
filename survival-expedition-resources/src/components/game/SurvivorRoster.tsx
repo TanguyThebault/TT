@@ -35,8 +35,19 @@ const SurvivorRoster: React.FC = () => {
       </div>
 
       <div className="space-y-2">
-        {state.survivors.map(survivor => (
-          <SurvivorCard key={survivor.id} survivor={survivor} />
+        {state.survivors.map((survivor, index) => (
+          <div
+            key={survivor.id}
+            className="wl-roster-in relative"
+            style={{ animationDelay: `${index * 38}ms` }}
+          >
+            {/* Ligne de balayage terminal */}
+            <div
+              className="wl-roster-sweep"
+              style={{ animationDelay: `${index * 38}ms` }}
+            />
+            <SurvivorCard survivor={survivor} />
+          </div>
         ))}
       </div>
     </div>

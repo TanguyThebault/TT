@@ -3,8 +3,9 @@ import { useGame, type Survivor } from '@/contexts/GameContext';
 import { ALL_EQUIPMENT, type EquipmentDef } from '@/data/gameData';
 import {
   Sword, Shield, Backpack, Heart, Wrench, Search, Stethoscope, Cog,
-  ChevronDown, ChevronUp, X, Plus, Pill
+  ChevronDown, ChevronUp, X, Plus, Pill, Package
 } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface SurvivorCardProps {
   survivor: Survivor;
@@ -24,6 +25,30 @@ const slotNames: Record<string, string> = {
   armor: 'Armure',
   backpack: 'Sac',
 };
+
+const statLabels: Record<string, string> = {
+  combat: 'Combat',
+  scavenging: 'Pillage',
+  medical: 'Médical',
+  engineering: 'Ingénierie',
+  health: 'Santé',
+  carryCapacity: 'Charge',
+};
+
+const TRAIT_FEMININE: Record<string, string> = {
+  'Éclaireur':       'Éclaireuse',
+  'Ingénieur':       'Ingénieure',
+  'Combattant':      'Combattante',
+  'Pilleur':         'Pilleuse',
+  'Tacticien':       'Tacticienne',
+  'Mécanicien':      'Mécanicienne',
+  "Tireur d'élite":  "Tireuse d'élite",
+};
+
+function traitLabel(trait: string, gender: 'male' | 'female'): string {
+  if (gender === 'female') return TRAIT_FEMININE[trait] ?? trait;
+  return trait;
+}
 
 const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'text-purple-400', 'text-amber-400'];
 const tierBorders = ['', 'border-zinc-600', 'border-green-600', 'border-blue-600', 'border-purple-600', 'border-amber-600'];
@@ -52,6 +77,11 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
     }
     return total;
   };
+
+  const armorHealthBonus = survivor.equipment.armor?.stats.health || 0;
+  const totalCarryCapacity = Object.values(survivor.equipment).reduce(
+    (sum, eq) => sum + (eq?.stats.carryCapacity || 0), 0
+  );
 
   return (
     <div className={`bg-zinc-900/60 border rounded-lg transition-all duration-200 ${
@@ -97,11 +127,23 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] font-mono text-amber-500/80 uppercase">{survivor.trait}</span>
+            <span className="text-[10px] font-mono text-amber-500/80 uppercase">{traitLabel(survivor.trait, survivor.gender)}</span>
             <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden max-w-[80px]">
               <div className={`h-full rounded-full transition-all duration-500 ${healthColor}`} style={{ width: `${healthPct}%` }} />
             </div>
-            <span className="text-[10px] font-mono text-zinc-500">{Math.round(survivor.health)}/{survivor.maxHealth}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] font-mono text-zinc-500 cursor-help">
+                  {Math.round(survivor.health)}/{survivor.maxHealth}
+                  {armorHealthBonus > 0 && <span className="text-amber-400 ml-0.5">+{armorHealthBonus}</span>}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[230px] text-xs font-mono leading-relaxed">
+                {armorHealthBonus > 0
+                  ? `En cas d'attaque, chaque survivant subit entre 5 et 20 dégâts (selon le danger). L'armure équipée absorbe ${Math.floor(armorHealthBonus * 0.3)} pts fixes (${armorHealthBonus} × 30%).`
+                  : "En cas d'attaque, chaque survivant subit entre 5 et 20 dégâts selon le niveau de danger. Équipez une armure pour réduire ces dégâts."}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -136,18 +178,31 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
           {/* Skills */}
           <div className="grid grid-cols-2 gap-2">
             {([
-              { key: 'combat', label: 'Combat', icon: <Sword className="w-3 h-3" />, color: 'text-red-400' },
-              { key: 'scavenging', label: 'Pillage', icon: <Search className="w-3 h-3" />, color: 'text-green-400' },
-              { key: 'medical', label: 'Médical', icon: <Stethoscope className="w-3 h-3" />, color: 'text-pink-400' },
-              { key: 'engineering', label: 'Ingénierie', icon: <Cog className="w-3 h-3" />, color: 'text-blue-400' },
+              { key: 'combat',      label: 'Combat',     icon: <Sword className="w-3 h-3" />,       color: 'text-red-400',
+                tooltip: "Détermine la capacité à repousser les attaques. Un combat élevé réduit les blessures et augmente la chance de vaincre les pillards lors d'une expédition." },
+              { key: 'scavenging', label: 'Pillage',     icon: <Search className="w-3 h-3" />,      color: 'text-green-400',
+                tooltip: "Augmente la quantité et la chance de trouver des ressources. Chaque point apporte +5% de butin supplémentaire lors d'une expédition." },
+              { key: 'medical',    label: 'Médical',     icon: <Stethoscope className="w-3 h-3" />, color: 'text-pink-400',
+                tooltip: "Améliore les soins sur le terrain et la récupération après blessure. Réduit les séquelles d'une expédition difficile." },
+              { key: 'engineering',label: 'Ingénierie',  icon: <Cog className="w-3 h-3" />,         color: 'text-blue-400',
+                tooltip: "Facilite l'accès aux zones sécurisées et la récupération de matériaux spéciaux lors des expéditions." },
             ] as const).map(skill => {
               const base = survivor.skills[skill.key];
               const effective = getEffectiveSkill(skill.key);
               const bonus = effective - base;
               return (
                 <div key={skill.key} className="flex items-center gap-2">
-                  <span className={`${skill.color}`}>{skill.icon}</span>
-                  <span className="text-xs text-zinc-400 w-16">{skill.label}</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1.5 cursor-help">
+                        <span className={skill.color}>{skill.icon}</span>
+                        <span className="text-xs text-zinc-400 w-16">{skill.label}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="max-w-[210px] text-xs font-mono">
+                      {skill.tooltip}
+                    </TooltipContent>
+                  </Tooltip>
                   <div className="flex-1 flex items-center gap-1">
                     {Array.from({ length: 10 }).map((_, i) => (
                       <div
@@ -168,6 +223,26 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             })}
           </div>
 
+          {/* Carry capacity */}
+          <div className="flex items-center gap-1.5 text-xs font-mono pt-1 border-t border-zinc-800/80">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 cursor-help">
+                  <Package className="w-3 h-3 text-cyan-400 shrink-0"/>
+                  <span className="text-zinc-500 w-16">Charge utile</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-[210px] text-xs font-mono">
+                Capacité de transport du sac à dos. Permet de rapporter davantage de butin lors des expéditions.
+              </TooltipContent>
+            </Tooltip>
+            {totalCarryCapacity > 0 ? (
+              <span className="text-amber-400">+{totalCarryCapacity}</span>
+            ) : (
+              <span className="text-zinc-600">—</span>
+            )}
+          </div>
+
           {/* Equipment Slots */}
           <div className="space-y-1.5">
             <div className="text-xs text-zinc-500 font-mono uppercase">Équipement</div>
@@ -186,7 +261,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                         <span className={`text-xs font-mono ${tierColors[eq.tier]}`}>{eq.name}</span>
                         <span className="text-[10px] text-zinc-600">T{eq.tier}</span>
                         <span className="text-[10px] text-zinc-500">
-                          {Object.entries(eq.stats).filter(([,v]) => v).map(([k,v]) => `${k}+${v}`).join(' ')}
+                          {Object.entries(eq.stats).filter(([,v]) => v).map(([k,v]) => `${statLabels[k] ?? k}+${v}`).join(' ')}
                         </span>
                       </div>
                     ) : (
@@ -234,7 +309,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                   <span>{item.name}</span>
                   <span className="text-zinc-600 text-[10px]">T{item.tier}</span>
                   <span className="text-zinc-500 text-[10px] ml-auto">
-                    {Object.entries(item.stats).filter(([,v]) => v).map(([k,v]) => `${k}+${v}`).join(' ')}
+                    {Object.entries(item.stats).filter(([,v]) => v).map(([k,v]) => `${statLabels[k] ?? k}+${v}`).join(' ')}
                   </span>
                 </button>
               ))}

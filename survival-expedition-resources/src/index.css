@@ -1,132 +1,370 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Variables ─────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 220 23% 95%;
-    --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 90%;
-    --sidebar-accent-foreground: 215 25% 27%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 221 83% 53%;
+    --background: 28 12% 5%;
+    --foreground: 38 28% 70%;
+    --card: 26 10% 7%;
+    --card-foreground: 38 28% 68%;
+    --popover: 26 14% 5%;
+    --popover-foreground: 38 28% 68%;
+    --primary: 35 75% 48%;
+    --primary-foreground: 28 12% 5%;
+    --secondary: 68 10% 11%;
+    --secondary-foreground: 72 14% 52%;
+    --muted: 26 8% 11%;
+    --muted-foreground: 34 10% 38%;
+    --accent: 28 10% 13%;
+    --accent-foreground: 38 28% 65%;
+    --destructive: 8 52% 30%;
+    --destructive-foreground: 38 28% 70%;
+    --border: 30 18% 13%;
+    --input: 28 14% 10%;
+    --ring: 35 62% 38%;
+    --radius: 0.15rem;
+    --sidebar-background: 26 12% 5%;
+    --sidebar-foreground: 38 22% 58%;
+    --sidebar-primary: 35 68% 44%;
+    --sidebar-primary-foreground: 28 12% 5%;
+    --sidebar-accent: 26 10% 10%;
+    --sidebar-accent-foreground: 38 22% 56%;
+    --sidebar-border: 28 16% 11%;
+    --sidebar-ring: 35 58% 36%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-
-    --sidebar-background: 215 28% 17%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 25% 27%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 27%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 28 12% 4%;
+    --foreground: 38 28% 70%;
+    --card: 26 10% 6%;
+    --card-foreground: 38 28% 68%;
+    --popover: 26 14% 4%;
+    --popover-foreground: 38 28% 66%;
+    --primary: 35 75% 48%;
+    --primary-foreground: 28 12% 4%;
+    --secondary: 68 10% 10%;
+    --secondary-foreground: 72 14% 50%;
+    --muted: 26 8% 10%;
+    --muted-foreground: 34 10% 36%;
+    --accent: 28 10% 12%;
+    --accent-foreground: 38 28% 65%;
+    --destructive: 8 52% 28%;
+    --destructive-foreground: 38 28% 70%;
+    --border: 30 18% 12%;
+    --input: 28 14% 9%;
+    --ring: 35 62% 36%;
+    --radius: 0.15rem;
+    --sidebar-background: 26 12% 4%;
+    --sidebar-foreground: 38 22% 55%;
+    --sidebar-primary: 35 68% 42%;
+    --sidebar-primary-foreground: 28 12% 4%;
+    --sidebar-accent: 26 10% 9%;
+    --sidebar-accent-foreground: 38 22% 53%;
+    --sidebar-border: 28 16% 10%;
+    --sidebar-ring: 35 58% 34%;
   }
 }
 
+/* ── Global base ───────────────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border;
   }
 
+  html {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans dark:bg-background dark:text-foreground;
+    background-color: #060503;
+    color: #b09060;
+    font-family: 'JetBrains Mono', 'Share Tech Mono', monospace;
   }
 
   pre, code {
     @apply font-mono;
   }
+
+  /* Amber phosphor selection */
+  ::selection {
+    background: rgba(170, 95, 15, 0.38);
+    color: #f0c060;
+  }
+
+  /* Corroded scrollbar */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: #080604; border-left: 1px solid rgba(90, 48, 8, 0.18); }
+  ::-webkit-scrollbar-thumb  { background: rgba(120, 62, 12, 0.5); border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(165, 88, 18, 0.7); }
 }
 
-.markdown-editor {
-  @apply font-mono text-base leading-relaxed;
+/* ── Keyframe animations ───────────────────────────────────────────────────── */
+
+/* Screen flicker — subtle CRT instability */
+@keyframes wl-flicker {
+  0%, 89%, 91%, 93%, 96%, 100% { opacity: 1; }
+  90%  { opacity: 0.18; }
+  92%  { opacity: 0.7;  }
+  94%  { opacity: 0.45; }
+  95%  { opacity: 1;    }
 }
 
-.markdown-preview {
-  @apply prose max-w-none prose-blue dark:prose-invert;
+/* Phosphor text pulse */
+@keyframes wl-phosphor {
+  0%, 100% {
+    text-shadow:
+      0 0 4px  rgba(200, 130, 22, 0.22),
+      0 0 1px  rgba(200, 130, 22, 0.5);
+  }
+  50% {
+    text-shadow:
+      0 0 10px rgba(220, 150, 30, 0.55),
+      0 0 3px  rgba(220, 150, 30, 0.85);
+  }
 }
 
-.markdown-preview pre {
-  @apply bg-secondary p-4 rounded-md overflow-x-auto;
+/* Slow scan line drift */
+@keyframes wl-scan-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 4px; }
 }
 
-.markdown-preview code {
-  @apply text-sm font-mono text-primary;
+/* Rust bloom */
+@keyframes wl-rust-breathe {
+  0%, 100% { opacity: 0.07; }
+  50%      { opacity: 0.13; }
 }
 
+/* Border corrosion pulse */
+@keyframes wl-corrode {
+  0%, 100% { border-color: rgba(110, 58, 10, 0.28); }
+  40%      { border-color: rgba(145, 78, 14, 0.42); }
+  70%      { border-color: rgba(92,  46,  7, 0.22); }
+}
+
+/* ── Utility classes ───────────────────────────────────────────────────────── */
+
+/* Scan lines overlay */
+.wl-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.11) 3px,
+    rgba(0, 0, 0, 0.11) 4px
+  );
+}
+
+/* Animated scan lines */
+.wl-scanlines-drift {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.09) 3px,
+    rgba(0, 0, 0, 0.09) 4px
+  );
+  animation: wl-scan-drift 0.8s steps(1) infinite;
+}
+
+/* Multi-angle wear scratches */
+.wl-scratched {
+  background-image:
+    repeating-linear-gradient(
+      86.5deg,
+      transparent 0px, transparent 18px,
+      rgba(255, 200, 90, 0.022) 18px, rgba(255, 200, 90, 0.022) 19px
+    ),
+    repeating-linear-gradient(
+      177deg,
+      transparent 0px, transparent 36px,
+      rgba(255, 185, 70, 0.014) 36px, rgba(255, 185, 70, 0.014) 37px
+    ),
+    repeating-linear-gradient(
+      92deg,
+      transparent 0px, transparent 58px,
+      rgba(255, 170, 50, 0.009) 58px, rgba(255, 170, 50, 0.009) 59px
+    ),
+    repeating-linear-gradient(
+      269deg,
+      transparent 0px, transparent 82px,
+      rgba(255, 160, 40, 0.007) 82px, rgba(255, 160, 40, 0.007) 83px
+    );
+}
+
+/* Military crosshatch grid */
+.wl-grid {
+  background-image:
+    linear-gradient(rgba(140, 82, 14, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 82, 14, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Rust stain — top-left corner */
+.wl-rust-tl {
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(105, 40, 6, 0.22) 0%,
+    rgba(85, 30, 4, 0.10) 30%,
+    transparent 60%
+  );
+}
+
+/* Rust stain — bottom-right corner */
+.wl-rust-br {
+  background: radial-gradient(
+    ellipse at bottom right,
+    rgba(90, 34, 5, 0.18) 0%,
+    rgba(70, 25, 3, 0.08) 30%,
+    transparent 58%
+  );
+}
+
+/* Rust stain — bottom-left corner */
+.wl-rust-bl {
+  background: radial-gradient(
+    ellipse at bottom left,
+    rgba(80, 30, 5, 0.14) 0%,
+    transparent 45%
+  );
+}
+
+/* Edge vignette */
+.wl-vignette {
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    transparent 38%,
+    rgba(0, 0, 0, 0.55) 75%,
+    rgba(0, 0, 0, 0.82) 100%
+  );
+}
+
+/* Tactical corner clip — small */
+.wl-corner {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+/* Tactical corner clip — large */
+.wl-corner-lg {
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+
+/* Hazard stripe — diagonal amber/black */
+.wl-hazard-v {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(140, 76, 10, 0.65) 0px,  rgba(140, 76, 10, 0.65) 5px,
+    rgba(6, 4, 2, 0.8)      5px,  rgba(6, 4, 2, 0.8)      10px
+  );
+}
+
+/* Hazard stripe — horizontal amber/black */
+.wl-hazard-h {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(130, 70, 8, 0.6)  0px,  rgba(130, 70, 8, 0.6)  10px,
+    rgba(6, 4, 2, 0.85)    10px, rgba(6, 4, 2, 0.85)    20px
+  );
+}
+
+/* Phosphor glow text animation */
+.wl-glow {
+  animation: wl-phosphor 5s ease-in-out infinite;
+}
+
+/* CRT flicker */
+.wl-flicker {
+  animation: wl-flicker 10s ease-in-out infinite;
+}
+
+/* Rust breathe */
+.wl-rust-anim {
+  animation: wl-rust-breathe 6s ease-in-out infinite;
+}
+
+/* Corroded border — animated */
+.wl-border-live {
+  animation: wl-corrode 9s ease-in-out infinite;
+}
+
+/* ── Roster card scan-in ──────────────────────────────────────────────────── */
+
+/* Balayage de chargement terminal : slide + jitter opacité */
+@keyframes wl-roster-in {
+  0%   { opacity: 0;    transform: translateX(-10px) translateY(-2px); }
+  8%   { opacity: 1;    transform: translateX(4px)   translateY(0.5px); }
+  16%  { opacity: 0.06; transform: translateX(-3px)  translateY(0);     }
+  25%  { opacity: 1;    transform: translateX(2px);                     }
+  34%  { opacity: 0.4;  transform: translateX(-1px);                    }
+  45%  { opacity: 1;    transform: translateX(0.5px);                   }
+  58%  { opacity: 1;    transform: translateX(0);                       }
+  100% { opacity: 1;    transform: translateX(0);                       }
+}
+
+/* Balayage de ligne de scan au-dessus de la carte */
+@keyframes wl-scan-sweep {
+  0%   { transform: translateY(-110%); opacity: 1; }
+  100% { transform: translateY(210%);  opacity: 0; }
+}
+
+.wl-roster-in {
+  animation: wl-roster-in 0.20s linear both;
+}
+
+.wl-roster-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    0deg,
+    transparent 0%,
+    rgba(200, 135, 18, 0.09) 48%,
+    rgba(220, 155, 22, 0.06) 52%,
+    transparent 100%
+  );
+  animation: wl-scan-sweep 0.20s linear both;
+  z-index: 20;
+}
+
+/* ── Camp life event slide-in ─────────────────────────────────────────────── */
+
+@keyframes wl-camp-event-in {
+  0%   { opacity: 0; transform: translateY(-4px) translateX(-3px); }
+  35%  { opacity: 1; transform: translateY(1px)  translateX(0.5px); }
+  55%  { opacity: 0.7; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.wl-camp-event-in {
+  animation: wl-camp-event-in 0.18s linear both;
+}
+
+/* Amber pulse on the newest entry */
+@keyframes wl-camp-event-pulse {
+  0%   { background-color: rgba(160, 90, 10, 0.18); }
+  100% { background-color: transparent; }
+}
+
+.wl-camp-event-new {
+  animation:
+    wl-camp-event-in   0.18s linear both,
+    wl-camp-event-pulse 1.2s ease-out 0.1s both;
+}
+
+/* ── Markdown (preserved) ─────────────────────────────────────────────────── */
+.markdown-editor  { @apply font-mono text-base leading-relaxed; }
+.markdown-preview { @apply prose max-w-none prose-blue dark:prose-invert; }
+.markdown-preview pre  { @apply bg-secondary p-4 rounded-md overflow-x-auto; }
+.markdown-preview code { @apply text-sm font-mono text-primary; }
 .markdown-preview h1,
 .markdown-preview h2,
 .markdown-preview h3,
 .markdown-preview h4,
 .markdown-preview h5,
-.markdown-preview h6 {
-  @apply font-sans font-semibold text-foreground;
-}
-
+.markdown-preview h6   { @apply font-sans font-semibold text-foreground; }
 .markdown-preview ul,
-.markdown-preview ol {
-  @apply my-4 ml-6;
-}
+.markdown-preview ol   { @apply my-4 ml-6; }
