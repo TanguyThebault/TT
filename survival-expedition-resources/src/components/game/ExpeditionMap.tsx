@@ -16,12 +16,13 @@ const ZONE_META: Record<string, {
   abbr: string;
   mapName: string;
 }> = {
-  suburbs:       { angle: 55,  envColor: '#7a6040', strokeColor: '#b08a50', abbr: 'BNL', mapName: 'Banlieue'    },
-  urban_ruins:   { angle: 130, envColor: '#3d5270', strokeColor: '#5b7aad', abbr: 'RUI', mapName: 'Ruines Urb.' },
-  military_base: { angle: 18,  envColor: '#2a5e2a', strokeColor: '#4a9452', abbr: 'MIL', mapName: 'Base Mil.'   },
-  hospital:      { angle: 245, envColor: '#5a7a30', strokeColor: '#8ab048', abbr: 'HOP', mapName: 'Hôpital'     },
-  industrial:    { angle: 200, envColor: '#8a3818', strokeColor: '#c45828', abbr: 'IND', mapName: 'Industriel'  },
-  laboratory:    { angle: 305, envColor: '#4a1a78', strokeColor: '#8040c8', abbr: 'LAB', mapName: 'Laboratoire' },
+  suburbs:        { angle: 55,  envColor: '#7a6040', strokeColor: '#b08a50', abbr: 'BNL', mapName: 'Banlieue'    },
+  urban_ruins:    { angle: 130, envColor: '#3d5270', strokeColor: '#5b7aad', abbr: 'RUI', mapName: 'Ruines Urb.' },
+  military_base:  { angle: 18,  envColor: '#2a5e2a', strokeColor: '#4a9452', abbr: 'MIL', mapName: 'Base Mil.'   },
+  hospital:       { angle: 245, envColor: '#5a7a30', strokeColor: '#8ab048', abbr: 'HOP', mapName: 'Hôpital'     },
+  industrial:     { angle: 200, envColor: '#8a3818', strokeColor: '#c45828', abbr: 'IND', mapName: 'Industriel'  },
+  laboratory:     { angle: 305, envColor: '#4a1a78', strokeColor: '#8040c8', abbr: 'LAB', mapName: 'Laboratoire' },
+  signal_contact: { angle: 165, envColor: '#1a5a6a', strokeColor: '#28a8c8', abbr: 'SIG', mapName: 'Fréquence'   },
 };
 
 const DANGER_COLORS = ['', '#4ade80', '#facc15', '#fb923c', '#f87171', '#ef4444'];
