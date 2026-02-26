@@ -220,6 +220,19 @@ export const BUILDINGS: BuildingDef[] = [
 
 export const ZONES: ZoneDef[] = [
   {
+    id: 'forest',
+    name: 'Forêt Sauvage',
+    description: 'Une forêt dense en périphérie. Peu de dangers, mais la faune locale peut surprendre. Source de nourriture fiable.',
+    icon: 'Trees',
+    baseDuration: 240, // 4 min
+    dangerLevel: 1,
+    lootTable: [
+      { type: 'resource', id: 'food', name: 'Nourriture', minQty: 8, maxQty: 20, chance: 0.95 },
+      { type: 'resource', id: 'food', name: 'Nourriture (gibier)', minQty: 5, maxQty: 12, chance: 0.6 },
+      { type: 'resource', id: 'food', name: 'Nourriture (baies)', minQty: 3, maxQty: 8, chance: 0.7 },
+    ],
+  },
+  {
     id: 'suburbs',
     name: 'Banlieue Dévastée',
     description: 'Quartiers résidentiels en ruines. Faible danger, ressources basiques.',

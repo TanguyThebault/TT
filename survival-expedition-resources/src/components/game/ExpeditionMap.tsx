@@ -23,6 +23,7 @@ const ZONE_META: Record<string, {
   industrial:     { angle: 200, envColor: '#8a3818', strokeColor: '#c45828', abbr: 'IND', mapName: 'Industriel'  },
   laboratory:     { angle: 305, envColor: '#4a1a78', strokeColor: '#8040c8', abbr: 'LAB', mapName: 'Laboratoire' },
   signal_contact: { angle: 165, envColor: '#1a5a6a', strokeColor: '#28a8c8', abbr: 'SIG', mapName: 'Fréquence'   },
+  forest:         { angle: 90,  envColor: '#1a4a1a', strokeColor: '#3aaa3a', abbr: 'FOR', mapName: 'Forêt'        },
 };
 
 const DANGER_COLORS = ['', '#4ade80', '#facc15', '#fb923c', '#f87171', '#ef4444'];
