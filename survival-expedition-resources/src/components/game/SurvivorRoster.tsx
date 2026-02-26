@@ -11,7 +11,7 @@ const SurvivorRoster: React.FC = () => {
 
   const available  = state.survivors.filter(s => s.status === 'available').length;
   const onMission  = state.survivors.filter(s => s.status === 'expedition').length;
-  const onTask     = state.survivors.filter(s => s.status === 'recycling').length;
+  const onTask     = state.survivors.filter(s => s.status === 'recycling' || s.status === 'training').length;
   const injured    = state.survivors.filter(s => s.status === 'injured').length;
 
   return (

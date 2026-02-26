@@ -63,7 +63,8 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
   const isOnExpedition = survivor.status === 'expedition';
   const isInjured      = survivor.status === 'injured';
   const isRecycling    = survivor.status === 'recycling';
-  const isBusy         = isOnExpedition || isRecycling;
+  const isTraining     = survivor.status === 'training';
+  const isBusy         = isOnExpedition || isRecycling || isTraining;
 
   const availableItems = equipSlot
     ? state.inventory.filter(item => item.slot === equipSlot)
@@ -90,6 +91,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
       selected          ? 'border-amber-500 shadow-lg shadow-amber-900/20' :
       isOnExpedition    ? 'border-blue-600/40 opacity-70' :
       isRecycling       ? 'border-amber-700/40 opacity-70' :
+      isTraining        ? 'border-blue-700/40 opacity-70' :
       isInjured         ? 'border-red-600/40' :
       'border-zinc-700/50 hover:border-zinc-600'
     }`}>
@@ -126,6 +128,11 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             {isRecycling && (
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-700/30">
                 EN TÂCHE
+              </span>
+            )}
+            {isTraining && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400 border border-blue-700/30">
+                ENTRAÎNEMENT
               </span>
             )}
             {isInjured && (

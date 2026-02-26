@@ -404,6 +404,33 @@ export function getInventoryCapacity(armoryLevel: number): number {
   return caps[Math.min(armoryLevel, 5)];
 }
 
+// ── Training ──────────────────────────────────────────────────────────────────
+
+export type TrainableStat = 'combat' | 'medical' | 'engineering';
+
+/** Durées d'entraînement en secondes pour les niveaux 1, 2 et 3. */
+export const TRAINING_DURATIONS: [number, number, number] = [3600, 10800, 36000];
+
+/** Bâtiment requis pour chaque statistique entraînable. */
+export const TRAINING_BUILDING_REQ: Record<TrainableStat, string> = {
+  combat:      'armory',
+  medical:     'infirmary',
+  engineering: 'workshop',
+};
+
+export const TRAINING_STAT_LABELS: Record<TrainableStat, string> = {
+  combat:      'Combat',
+  medical:     'Médical',
+  engineering: 'Ingénierie',
+};
+
+/** Niveau minimum du bâtiment pour débloquer l'entraînement niveau n (1-3). */
+export function getTrainingBuildingLevel(trainingLevel: number): number {
+  return trainingLevel + 1; // nv.1 → bâtiment lv.2, nv.2 → lv.3, nv.3 → lv.4
+}
+
+// ── Recycling ─────────────────────────────────────────────────────────────────
+
 /** Niveau d'ingénierie minimum pour recycler un objet selon son tier. */
 export function getRecycleMinEngineering(tier: number): number {
   return tier * 2;
