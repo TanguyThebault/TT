@@ -50,6 +50,73 @@ function traitLabel(trait: string, gender: 'male' | 'female'): string {
   return trait;
 }
 
+/* ── Generated survivor portrait ─────────────────────────────────────────── */
+const SKIN_TONES  = ['#c8956c', '#a8774c', '#7a5030', '#e0b890', '#b07050'];
+const HAIR_COLORS = ['#1a0e05', '#2e1a08', '#8b6330', '#a07840', '#3a2208', '#c8a050'];
+
+function seededInt(seed: number, max: number): number {
+  return ((seed * 1664525 + 1013904223) >>> 0) % max;
+}
+
+const SurvivorPortrait: React.FC<{ survivor: Survivor; healthPct: number }> = ({ survivor, healthPct }) => {
+  let seed = 0;
+  for (let i = 0; i < survivor.id.length; i++) {
+    seed = (seed * 31 + survivor.id.charCodeAt(i)) & 0x7fffffff;
+  }
+  const skinTone  = SKIN_TONES[seededInt(seed, SKIN_TONES.length)];
+  const hairColor = HAIR_COLORS[seededInt(seed + 7, HAIR_COLORS.length)];
+  const hairStyle = seededInt(seed + 13, 3);
+  const isMale    = survivor.gender === 'male';
+
+  const frameColor    = healthPct > 60 ? '#3a2e1a' : healthPct > 30 ? '#6a2a10' : '#8a1010';
+  const injuryOpacity = healthPct < 30 ? 0.38 : healthPct < 60 ? 0.20 : 0;
+
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="w-7 h-7 flex-shrink-0 rounded"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ background: '#0e0b08' }}
+    >
+      {/* Body / shoulders */}
+      <path
+        d={isMale ? 'M2,32 L5,23 Q16,21 27,23 L30,32Z' : 'M4,32 L7,24 Q16,22 25,24 L28,32Z'}
+        fill="#1a1510"
+      />
+      {/* Neck */}
+      <rect x="13.5" y="20" width="5" height="5" rx="0.5" fill={skinTone} />
+      {/* Face */}
+      <ellipse cx="16" cy="14.5" rx={isMale ? 8 : 7} ry="9.5" fill={skinTone} />
+      {/* Hair — 3 variants */}
+      {hairStyle === 0 && (
+        <path d="M8,14 Q8,5 16,4 Q24,5 24,14 Q22,8 16,7 Q10,8 8,14Z" fill={hairColor} />
+      )}
+      {hairStyle === 1 && (
+        <>
+          <path d="M8,14 Q7,4 16,3 Q25,4 24,14 Q22,7 16,6 Q10,7 8,14Z" fill={hairColor} />
+          {!isMale && (
+            <path d="M8,14 Q5,22 6,28 Q10,20 8,14Z M24,14 Q27,22 26,28 Q22,20 24,14Z" fill={hairColor} />
+          )}
+        </>
+      )}
+      {hairStyle === 2 && (
+        <path d="M7,14 Q7,4 16,3 Q25,4 25,14 Q24,8 20,6 Q12,6 8,14Z" fill={hairColor} />
+      )}
+      {/* Eyes */}
+      <ellipse cx="12.5" cy="15" rx="1.8" ry="1.3" fill="#0a0806" />
+      <ellipse cx="19.5" cy="15" rx="1.8" ry="1.3" fill="#0a0806" />
+      {/* Mouth */}
+      <path d="M13.5,20 Q16,21.5 18.5,20" stroke="#8a5035" strokeWidth="0.7" fill="none" strokeLinecap="round" />
+      {/* Injury blood overlay */}
+      {injuryOpacity > 0 && (
+        <rect width="32" height="32" fill={`rgba(180,20,20,${injuryOpacity})`} />
+      )}
+      {/* Frame border */}
+      <rect x="0.5" y="0.5" width="31" height="31" fill="none" stroke={frameColor} strokeWidth="1" />
+    </svg>
+  );
+};
+
 const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'text-purple-400', 'text-amber-400'];
 const tierBorders = ['', 'border-zinc-600', 'border-green-600', 'border-blue-600', 'border-purple-600', 'border-amber-600'];
 
@@ -137,6 +204,8 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             {selected && <div className="w-2 h-2 bg-black rounded-sm" />}
           </div>
         )}
+
+        <SurvivorPortrait survivor={survivor} healthPct={healthPct} />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

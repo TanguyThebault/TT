@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import Header from './game/Header';
 import ResourceBar from './game/ResourceBar';
@@ -16,6 +16,59 @@ import CampLife from './game/CampLife';
 import TasksPanel from './game/TasksPanel';
 import TradingPanel from './game/TradingPanel';
 import ExpeditionResults from './game/ExpeditionResults';
+
+/* ── Film grain overlay (isolated so seed interval doesn't re-render siblings) */
+const FilmGrain: React.FC = () => {
+  const [seed, setSeed] = useState(1);
+  useEffect(() => {
+    const id = setInterval(() => setSeed(s => (s >= 99 ? 1 : s + 1)), 120);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <svg
+      className="fixed inset-0 z-0 pointer-events-none"
+      style={{ width: '100%', height: '100%', opacity: 0.04 }}
+    >
+      <defs>
+        <filter id="wl-grain" x="0%" y="0%" width="100%" height="100%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.75"
+            numOctaves="4"
+            seed={seed}
+            stitchTiles="stitch"
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+      </defs>
+      <rect width="100%" height="100%" filter="url(#wl-grain)" fill="white" />
+    </svg>
+  );
+};
+
+/* ── Day / night ambient tint ────────────────────────────────────────────── */
+function getDayTint(): { color: string; opacity: number } {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  if (h >= 20 || h < 5)  return { color: '#0a1840', opacity: 0.10 }; // nuit  : bleu profond
+  if (h >= 5  && h < 7)  return { color: '#c04010', opacity: 0.08 }; // aube  : rouge orangé
+  if (h >= 7  && h < 9)  return { color: '#d06020', opacity: 0.04 }; // matin : chaud
+  if (h >= 17 && h < 20) return { color: '#b84010', opacity: 0.07 }; // crépuscule : orange
+  return { color: '#000000', opacity: 0.00 };                          // journée : neutre
+}
+
+const DayNightTint: React.FC = () => {
+  const [tint, setTint] = useState(getDayTint);
+  useEffect(() => {
+    const id = setInterval(() => setTint(getDayTint()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div
+      className="fixed inset-0 z-0 pointer-events-none"
+      style={{ backgroundColor: tint.color, opacity: tint.opacity, transition: 'background-color 60s ease, opacity 60s ease' }}
+    />
+  );
+};
 
 const AppLayout: React.FC = () => {
   const { state } = useGame();
@@ -88,6 +141,12 @@ const AppLayout: React.FC = () => {
 
       {/* L5 — Edge vignette */}
       <div className="fixed inset-0 z-0 pointer-events-none wl-vignette" />
+
+      {/* L6 — Animated film grain */}
+      <FilmGrain />
+
+      {/* L7 — Day / night cycle tint */}
+      <DayNightTint />
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       <div className="relative z-10">

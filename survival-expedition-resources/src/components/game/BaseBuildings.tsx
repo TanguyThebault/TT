@@ -7,6 +7,15 @@ import {
 } from 'lucide-react';
 
 
+const ICON_LEVEL_STYLES = [
+  'bg-zinc-800/80 text-zinc-600',          // niveau 0 — éteint
+  'bg-amber-950/60 text-amber-700',         // niveau 1
+  'bg-amber-900/40 text-amber-500',         // niveau 2
+  'bg-amber-800/35 text-amber-400',         // niveau 3
+  'bg-amber-700/30 text-amber-300',         // niveau 4
+  'bg-amber-600/30 text-amber-200',         // niveau 5 — max
+];
+
 const buildingIcons: Record<string, React.ReactNode> = {
   Hammer: <Hammer className="w-5 h-5" />,
   Heart: <Heart className="w-5 h-5" />,
@@ -36,13 +45,16 @@ const BaseBuildings: React.FC = () => {
           const canAfford = !isMaxed && Object.entries(cost).every(
             ([res, amt]) => (state.resources[res] || 0) >= amt
           );
+          const levelGlow = isMaxed
+            ? 'shadow-lg shadow-amber-900/25'
+            : level >= 3 ? 'shadow-md shadow-amber-950/20' : '';
 
           return (
             <div
               key={building.id}
-              className={`bg-zinc-900/60 border rounded-lg p-4 transition-all duration-200 ${
+              className={`bg-zinc-900/60 border rounded-lg p-4 transition-all duration-300 ${levelGlow} ${
                 isMaxed
-                  ? 'border-amber-600/30'
+                  ? 'border-amber-600/40'
                   : canAfford
                     ? 'border-amber-500/50 hover:border-amber-400 hover:shadow-lg hover:shadow-amber-900/20 cursor-pointer'
                     : 'border-zinc-700/50'
@@ -50,7 +62,7 @@ const BaseBuildings: React.FC = () => {
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded ${level > 0 ? 'bg-amber-900/30 text-amber-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                  <div className={`p-2 rounded transition-all duration-500 ${ICON_LEVEL_STYLES[Math.min(level, ICON_LEVEL_STYLES.length - 1)]} ${isMaxed ? 'wl-glow' : ''}`}>
                     {buildingIcons[building.icon]}
                   </div>
                   <div>
