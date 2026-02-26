@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame, type Survivor } from '@/contexts/GameContext';
 import { ALL_EQUIPMENT, type EquipmentDef } from '@/data/gameData';
 import {
   Sword, Shield, Backpack, Heart, Wrench, Search, Stethoscope, Cog,
-  ChevronDown, ChevronUp, X, Plus, Pill, Package
+  ChevronDown, ChevronUp, X, Plus, Pill, Package, Moon
 } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
@@ -54,9 +54,16 @@ const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'tex
 const tierBorders = ['', 'border-zinc-600', 'border-green-600', 'border-blue-600', 'border-purple-600', 'border-amber-600'];
 
 const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selected, onToggleSelect }) => {
-  const { state, equipItem, unequipItem, healSurvivor } = useGame();
+  const { state, equipItem, unequipItem, healSurvivor, repairItem } = useGame();
   const [expanded, setExpanded] = useState(false);
   const [equipSlot, setEquipSlot] = useState<'weapon' | 'armor' | 'backpack' | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (survivor.status !== 'resting') return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [survivor.status]);
 
   const healthPct = (survivor.health / survivor.maxHealth) * 100;
   const healthColor = healthPct > 60 ? 'bg-green-500' : healthPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
@@ -64,7 +71,20 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
   const isInjured      = survivor.status === 'injured';
   const isRecycling    = survivor.status === 'recycling';
   const isTraining     = survivor.status === 'training';
+  const isResting      = survivor.status === 'resting';
   const isBusy         = isOnExpedition || isRecycling || isTraining;
+
+  const restSecondsLeft = isResting && survivor.restingUntil
+    ? Math.max(0, Math.ceil((survivor.restingUntil - now) / 1000))
+    : 0;
+  const restLabel = restSecondsLeft > 60
+    ? `${Math.floor(restSecondsLeft / 60)}m${restSecondsLeft % 60 > 0 ? ` ${restSecondsLeft % 60}s` : ''}`
+    : `${restSecondsLeft}s`;
+
+  const durabilityColor = (d: number, max: number) => {
+    const pct = d / max;
+    return pct > 0.6 ? 'bg-green-500' : pct > 0.3 ? 'bg-yellow-500' : 'bg-red-500';
+  };
 
   const availableItems = equipSlot
     ? state.inventory.filter(item => item.slot === equipSlot)
@@ -92,13 +112,14 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
       isOnExpedition    ? 'border-blue-600/40 opacity-70' :
       isRecycling       ? 'border-amber-700/40 opacity-70' :
       isTraining        ? 'border-blue-700/40 opacity-70' :
+      isResting         ? 'border-violet-700/40 opacity-80' :
       isInjured         ? 'border-red-600/40' :
       'border-zinc-700/50 hover:border-zinc-600'
     }`}>
       <div
-        className={`p-3 flex items-center gap-3 ${selectable && !isBusy ? 'cursor-pointer' : ''}`}
+        className={`p-3 flex items-center gap-3 ${selectable && !isBusy && !isResting ? 'cursor-pointer' : ''}`}
         onClick={() => {
-          if (selectable && !isBusy && !isInjured && onToggleSelect) {
+          if (selectable && !isBusy && !isInjured && !isResting && onToggleSelect) {
             onToggleSelect();
           } else if (!selectable) {
             setExpanded(!expanded);
@@ -107,7 +128,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
       >
         {selectable && (
           <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-            isBusy || isInjured
+            isBusy || isInjured || isResting
               ? 'border-zinc-700 bg-zinc-800'
               : selected
                 ? 'border-amber-500 bg-amber-500'
@@ -140,6 +161,11 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                 BLESSÉ
               </span>
             )}
+            {isResting && (
+              <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-900/30 text-violet-400 border border-violet-700/30">
+                <Moon className="w-2.5 h-2.5"/>REPOS {restSecondsLeft > 0 && restLabel}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] font-mono text-amber-500/80 uppercase">{traitLabel(survivor.trait, survivor.gender)}</span>
@@ -165,17 +191,24 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
         <div className="flex items-center gap-1.5">
           {(['weapon', 'armor', 'backpack'] as const).map(slot => {
             const eq = survivor.equipment[slot];
+            const durPct = eq ? (eq.durability / eq.maxDurability) * 100 : 0;
             return (
-              <div
-                key={slot}
-                className={`w-7 h-7 rounded flex items-center justify-center ${
-                  eq
-                    ? `bg-zinc-800 ${tierColors[eq.tier]} ${tierBorders[eq.tier]} border`
-                    : 'bg-zinc-800/50 text-zinc-600 border border-zinc-800'
-                }`}
-                title={eq ? `${eq.name} (T${eq.tier})` : `${slotNames[slot]} — Vide`}
-              >
-                {slotIcons[slot]}
+              <div key={slot} className="flex flex-col items-center gap-0.5">
+                <div
+                  className={`w-7 h-7 rounded flex items-center justify-center ${
+                    eq
+                      ? `bg-zinc-800 ${tierColors[eq.tier]} ${tierBorders[eq.tier]} border`
+                      : 'bg-zinc-800/50 text-zinc-600 border border-zinc-800'
+                  }`}
+                  title={eq ? `${eq.name} (T${eq.tier}) — ${eq.durability}/${eq.maxDurability} durabilité` : `${slotNames[slot]} — Vide`}
+                >
+                  {slotIcons[slot]}
+                </div>
+                {eq && (
+                  <div className="w-7 h-0.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className={`h-full ${durabilityColor(eq.durability, eq.maxDurability)}`} style={{ width: `${durPct}%` }}/>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -272,12 +305,23 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                   </div>
                   <div className="flex-1">
                     {eq ? (
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-mono ${tierColors[eq.tier]}`}>{eq.name}</span>
-                        <span className="text-[10px] text-zinc-600">T{eq.tier}</span>
-                        <span className="text-[10px] text-zinc-500">
-                          {Object.entries(eq.stats).filter(([,v]) => v).map(([k,v]) => `${statLabels[k] ?? k}+${v}`).join(' ')}
-                        </span>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-mono ${tierColors[eq.tier]}`}>{eq.name}</span>
+                          <span className="text-[10px] text-zinc-600">T{eq.tier}</span>
+                          <span className="text-[10px] text-zinc-500">
+                            {Object.entries(eq.stats).filter(([,v]) => v).map(([k,v]) => `${statLabels[k] ?? k}+${v}`).join(' ')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-16 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${durabilityColor(eq.durability, eq.maxDurability)}`}
+                              style={{ width: `${(eq.durability / eq.maxDurability) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] font-mono text-zinc-600">{eq.durability}/{eq.maxDurability}</span>
+                        </div>
                       </div>
                     ) : (
                       <span className="text-xs text-zinc-600 italic">Vide — {slotNames[slot]}</span>
@@ -285,6 +329,20 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                   </div>
                   {!isBusy && (
                     <div className="flex gap-1">
+                      {eq && (() => {
+                        const repairCost = eq.tier * 5;
+                        const canRepair = eq.durability < eq.maxDurability && (state.resources['scrap'] || 0) >= repairCost;
+                        return (
+                          <button
+                            onClick={() => repairItem(survivor.id, slot)}
+                            disabled={!canRepair}
+                            className={`text-xs p-1 ${canRepair ? 'text-zinc-400 hover:text-blue-400' : 'text-zinc-700 cursor-not-allowed'}`}
+                            title={`Réparer (${repairCost} ferraille)`}
+                          >
+                            <Wrench className="w-3 h-3" />
+                          </button>
+                        );
+                      })()}
                       {eq && (
                         <button
                           onClick={() => unequipItem(survivor.id, slot)}

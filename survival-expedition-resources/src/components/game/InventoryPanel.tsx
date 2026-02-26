@@ -128,16 +128,27 @@ const InventoryPanel: React.FC = () => {
                   <div className="rounded bg-zinc-900 border border-zinc-800 overflow-hidden">
                     <div className="h-1 bg-zinc-700" />
                     <div className="p-2 flex flex-wrap gap-1">
-                      {items.map((item, idx) => (
-                        <div
-                          key={`${item.id}-${idx}`}
-                          className={`text-[11px] font-mono px-2 py-1.5 rounded border cursor-default ${tierBg[item.tier]} ${tierBorder[item.tier]} ${tierColors[item.tier]}`}
-                          title={Object.entries(item.stats).filter(([, v]) => v).map(([k, v]) => `${k}+${v}`).join(' ')}
-                        >
-                          <div className="leading-tight whitespace-nowrap">{item.name}</div>
-                          <div className="text-[9px] text-zinc-600 leading-none mt-0.5">T{item.tier}</div>
-                        </div>
-                      ))}
+                      {items.map((item, idx) => {
+                        const durPct = item.durability != null ? (item.durability / item.maxDurability) * 100 : 100;
+                        const durColor = durPct > 60 ? 'bg-green-500' : durPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
+                        return (
+                          <div
+                            key={`${item.id}-${idx}`}
+                            className={`text-[11px] font-mono px-2 py-1.5 rounded border cursor-default ${tierBg[item.tier]} ${tierBorder[item.tier]} ${tierColors[item.tier]}`}
+                            title={Object.entries(item.stats).filter(([, v]) => v).map(([k, v]) => `${k}+${v}`).join(' ')}
+                          >
+                            <div className="leading-tight whitespace-nowrap">{item.name}</div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[9px] text-zinc-600">T{item.tier}</span>
+                              {item.durability != null && (
+                                <div className="flex-1 h-0.5 bg-zinc-700 rounded-full overflow-hidden">
+                                  <div className={`h-full ${durColor}`} style={{ width: `${durPct}%` }}/>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="h-1.5 bg-zinc-700/70" />
                   </div>

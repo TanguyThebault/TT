@@ -43,6 +43,8 @@ export interface EquipmentDef {
     carryCapacity?: number;
   };
   craftCost?: Record<string, number>;
+  maxDurability: number;
+  durability: number; // current value (instance-level)
 }
 
 export interface ResourceDef {
@@ -338,28 +340,30 @@ export const ZONES: ZoneDef[] = [
   },
 ];
 
+const D = (maxDurability: number) => ({ maxDurability, durability: maxDurability });
+
 export const ALL_EQUIPMENT: EquipmentDef[] = [
   // Tier 1
-  { id: 'pipe_weapon', name: 'Tuyau en Plomb', slot: 'weapon', tier: 1, stats: { combat: 3 } },
-  { id: 'rags_armor', name: 'Armure de Fortune', slot: 'armor', tier: 1, stats: { health: 10 } },
-  { id: 'basic_pack', name: 'Sac à Dos Basique', slot: 'backpack', tier: 1, stats: { carryCapacity: 5, scavenging: 1 } },
+  { id: 'pipe_weapon', name: 'Tuyau en Plomb',       slot: 'weapon',   tier: 1, stats: { combat: 3 },                               ...D(80) },
+  { id: 'rags_armor',  name: 'Armure de Fortune',     slot: 'armor',    tier: 1, stats: { health: 10 },                              ...D(80) },
+  { id: 'basic_pack',  name: 'Sac à Dos Basique',     slot: 'backpack', tier: 1, stats: { carryCapacity: 5, scavenging: 1 },         ...D(80) },
   // Tier 2
-  { id: 'machete', name: 'Machette', slot: 'weapon', tier: 2, stats: { combat: 6, scavenging: 1 } },
-  { id: 'leather_armor', name: 'Armure de Cuir', slot: 'armor', tier: 2, stats: { health: 20, combat: 2 } },
-  { id: 'hiking_pack', name: 'Sac de Randonnée', slot: 'backpack', tier: 2, stats: { carryCapacity: 10, scavenging: 2 } },
+  { id: 'machete',       name: 'Machette',            slot: 'weapon',   tier: 2, stats: { combat: 6, scavenging: 1 },                ...D(100) },
+  { id: 'leather_armor', name: 'Armure de Cuir',      slot: 'armor',    tier: 2, stats: { health: 20, combat: 2 },                   ...D(100) },
+  { id: 'hiking_pack',   name: 'Sac de Randonnée',    slot: 'backpack', tier: 2, stats: { carryCapacity: 10, scavenging: 2 },        ...D(100) },
   // Tier 3
-  { id: 'combat_rifle', name: 'Fusil de Combat', slot: 'weapon', tier: 3, stats: { combat: 12, scavenging: 2 } },
-  { id: 'tactical_vest', name: 'Gilet Tactique', slot: 'armor', tier: 3, stats: { health: 35, combat: 5 } },
-  { id: 'military_pack', name: 'Sac Militaire', slot: 'backpack', tier: 3, stats: { carryCapacity: 18, scavenging: 4 } },
-  { id: 'medkit', name: 'Kit Médical Pro', slot: 'backpack', tier: 3, stats: { medical: 8, carryCapacity: 5 } },
+  { id: 'combat_rifle',  name: 'Fusil de Combat',     slot: 'weapon',   tier: 3, stats: { combat: 12, scavenging: 2 },               ...D(120) },
+  { id: 'tactical_vest', name: 'Gilet Tactique',      slot: 'armor',    tier: 3, stats: { health: 35, combat: 5 },                   ...D(120) },
+  { id: 'military_pack', name: 'Sac Militaire',       slot: 'backpack', tier: 3, stats: { carryCapacity: 18, scavenging: 4 },        ...D(120) },
+  { id: 'medkit',        name: 'Kit Médical Pro',     slot: 'backpack', tier: 3, stats: { medical: 8, carryCapacity: 5 },            ...D(120) },
   // Tier 4
-  { id: 'plasma_cutter', name: 'Découpeur Plasma', slot: 'weapon', tier: 4, stats: { combat: 20, engineering: 5 } },
-  { id: 'hazmat_suit', name: 'Combinaison HAZMAT', slot: 'armor', tier: 4, stats: { health: 50, medical: 5, engineering: 3 } },
-  { id: 'heavy_pack', name: 'Sac Renforcé', slot: 'backpack', tier: 4, stats: { carryCapacity: 25, scavenging: 6 } },
+  { id: 'plasma_cutter', name: 'Découpeur Plasma',    slot: 'weapon',   tier: 4, stats: { combat: 20, engineering: 5 },              ...D(150) },
+  { id: 'hazmat_suit',   name: 'Combinaison HAZMAT',  slot: 'armor',    tier: 4, stats: { health: 50, medical: 5, engineering: 3 },  ...D(150) },
+  { id: 'heavy_pack',    name: 'Sac Renforcé',        slot: 'backpack', tier: 4, stats: { carryCapacity: 25, scavenging: 6 },        ...D(150) },
   // Tier 5
-  { id: 'railgun', name: 'Railgun Prototype', slot: 'weapon', tier: 5, stats: { combat: 30, engineering: 8 } },
-  { id: 'power_armor', name: 'Armure Assistée', slot: 'armor', tier: 5, stats: { health: 80, combat: 10, engineering: 5 } },
-  { id: 'quantum_pack', name: 'Sac Quantique', slot: 'backpack', tier: 5, stats: { carryCapacity: 40, scavenging: 10 } },
+  { id: 'railgun',       name: 'Railgun Prototype',   slot: 'weapon',   tier: 5, stats: { combat: 30, engineering: 8 },              ...D(200) },
+  { id: 'power_armor',   name: 'Armure Assistée',     slot: 'armor',    tier: 5, stats: { health: 80, combat: 10, engineering: 5 },  ...D(200) },
+  { id: 'quantum_pack',  name: 'Sac Quantique',       slot: 'backpack', tier: 5, stats: { carryCapacity: 40, scavenging: 10 },       ...D(200) },
 ];
 
 export const CRAFT_RECIPES: Record<string, Record<string, number>> = {

@@ -573,7 +573,10 @@ const ExpeditionMap: React.FC = () => {
 
           <div className="text-xs font-mono text-zinc-500">
             <span className="text-zinc-600 text-[10px] uppercase tracking-wider">Butin : </span>
-            {selectedZone.lootTable.map(l => l.name).join(', ')}
+            {state.discoveredZones.includes(selectedZone.id)
+              ? selectedZone.lootTable.map(l => l.name).join(', ')
+              : <span className="text-zinc-600 italic">Inconnu — envoyez une expédition pour explorer</span>
+            }
           </div>
 
           <div>
