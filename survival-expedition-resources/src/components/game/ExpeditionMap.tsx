@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ZONES, BUILDINGS, RESOURCES, getExpeditionDurationMultiplier, getDangerReduction, getUpgradeCost, type ZoneDef, type BuildingDef } from '@/data/gameData';
+import { ZONES, BUILDINGS, RESOURCES, VEHICLE_DEFS, getDangerReduction, getUpgradeCost, type ZoneDef, type BuildingDef } from '@/data/gameData';
 import SurvivorCard from './SurvivorCard';
-import { AlertTriangle, Clock, Rocket, Users, Lock, Sword, Search, Shield } from 'lucide-react';
+import { AlertTriangle, Clock, Rocket, Users, Lock, Sword, Search, Shield, Car, AlertCircle, Gauge, Volume2, Swords } from 'lucide-react';
 
 // ── Map layout ────────────────────────────────────────────────────────────────
 const CX = 400, CY = 280;
@@ -126,6 +126,7 @@ const ExpeditionMap: React.FC = () => {
   const { state, launchExpedition, viewResults } = useGame();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSurvivors, setSelectedSurvivors] = useState<string[]>([]);
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -179,10 +180,29 @@ const ExpeditionMap: React.FC = () => {
     setSelectedId(prev => prev === zoneId ? null : zoneId);
   };
 
-  const garageLevel    = state.buildings['garage']     || 0;
   const watchtowerLevel = state.buildings['watchtower'] || 0;
-  const durationMult   = getExpeditionDurationMultiplier(garageLevel);
   const dangerReduction = getDangerReduction(watchtowerLevel);
+
+  // ── Véhicules disponibles (pas en expédition active) ─────────────────────
+  const vehiclesInUse = new Set(
+    state.expeditions.filter(e => !e.completed).flatMap(e => e.vehicleIds ?? [])
+  );
+  const availableVehicles = state.garageVehicles.filter(v => !vehiclesInUse.has(v.id));
+
+  // ── Calcul de vitesse basé sur les véhicules sélectionnés ────────────────
+  const embarkedVehicles = selectedVehicleIds
+    .map(id => availableVehicles.find(v => v.id === id))
+    .filter(Boolean) as typeof availableVehicles;
+  const totalSeats = embarkedVehicles.reduce((sum, v) => sum + v.spaces, 0);
+  const allSeated  = selectedSurvivors.length === 0 || totalSeats >= selectedSurvivors.length;
+  const effectiveSpeed = (() => {
+    if (!allSeated || embarkedVehicles.length === 0) return 0;
+    const speeds = embarkedVehicles.map(v => VEHICLE_DEFS.find(d => d.id === v.type)?.speed ?? 0);
+    return Math.min(...speeds);
+  })();
+
+  const maxVehicleNoise  = embarkedVehicles.reduce((max, v) => Math.max(max, VEHICLE_DEFS.find(d => d.id === v.type)?.noise  ?? 0), 0);
+  const totalVehicleCombat = embarkedVehicles.reduce((sum, v) => sum + (VEHICLE_DEFS.find(d => d.id === v.type)?.combat ?? 0), 0);
 
   const availableSurvivors = state.survivors.filter(s => s.status === 'available');
 
@@ -209,7 +229,7 @@ const ExpeditionMap: React.FC = () => {
 
   const selectedZone = selectedId ? (ZONES.find(z => z.id === selectedId) ?? null) : null;
   const selectedMeta = selectedId ? (ZONE_META[selectedId] ?? null)                : null;
-  const selectedDur  = selectedZone ? Math.floor(selectedZone.baseDuration * durationMult) : 0;
+  const selectedDur  = selectedZone ? Math.floor(selectedZone.baseDuration * (1 - effectiveSpeed)) : 0;
   const isSelectedLocked = selectedZone?.requiredBuildingLevel
     ? (state.buildings[selectedZone.requiredBuildingLevel.buildingId] || 0) < selectedZone.requiredBuildingLevel.level
     : false;
@@ -221,9 +241,16 @@ const ExpeditionMap: React.FC = () => {
 
   const handleLaunch = () => {
     if (!selectedId || selectedSurvivors.length === 0 || !hasEnoughFood) return;
-    launchExpedition(selectedId, selectedSurvivors);
+    launchExpedition(selectedId, selectedSurvivors, selectedVehicleIds);
     setSelectedId(null);
     setSelectedSurvivors([]);
+    setSelectedVehicleIds([]);
+  };
+
+  const toggleVehicle = (vehicleId: string) => {
+    setSelectedVehicleIds(prev =>
+      prev.includes(vehicleId) ? prev.filter(id => id !== vehicleId) : [...prev, vehicleId]
+    );
   };
 
   return (
@@ -235,7 +262,7 @@ const ExpeditionMap: React.FC = () => {
           onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })}
           className="absolute top-2 right-2 z-10 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 bg-zinc-900/80 border border-zinc-700/40 rounded px-2 py-1 transition-colors"
         >
-          ⟳ reset vue
+          ⟳ réinit. vue
         </button>
         <svg ref={svgRef} viewBox="0 0 800 520" className="w-full block"
           style={{ background: '#07070a', cursor: 'grab' }}
@@ -383,7 +410,7 @@ const ExpeditionMap: React.FC = () => {
             const sel      = selectedId === z.id;
             const hasActive = activeExps.some(e => e.zoneId === z.id);
             const hasDone   = completedExps.some(e => e.zoneId === z.id);
-            const dur       = Math.floor(z.baseDuration * durationMult);
+            const dur       = z.baseDuration;
 
             return (
               <g key={`z-${z.id}`}
@@ -548,7 +575,7 @@ const ExpeditionMap: React.FC = () => {
               <p className="text-xs text-zinc-400 mt-0.5">{selectedZone.description}</p>
             </div>
             <button
-              onClick={() => { setSelectedId(null); setSelectedSurvivors([]); }}
+              onClick={() => { setSelectedId(null); setSelectedSurvivors([]); setSelectedVehicleIds([]); }}
               className="text-zinc-600 hover:text-zinc-300 transition-colors ml-4 shrink-0 text-xs font-mono"
             >✕</button>
           </div>
@@ -565,8 +592,8 @@ const ExpeditionMap: React.FC = () => {
             <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-800/80 border border-zinc-700/50 text-blue-400">
               <Clock className="w-3 h-3"/>
               {formatTime(selectedDur)}
-              {garageLevel > 0 && (
-                <span className="text-green-400 ml-1">-{Math.round((1 - durationMult) * 100)}%</span>
+              {effectiveSpeed > 0 && (
+                <span className="text-green-400 ml-1">-{Math.round(effectiveSpeed * 100)}%</span>
               )}
             </span>
           </div>
@@ -616,6 +643,129 @@ const ExpeditionMap: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* ── Sélection de véhicules ────────────────────────────────── */}
+          {availableVehicles.length > 0 && (
+            <div>
+              <div className="text-xs font-mono text-zinc-400 mb-2 flex items-center gap-1.5">
+                <Car className="w-3.5 h-3.5"/>
+                Véhicules à emmener
+                <span className="text-zinc-600 text-[10px]">(optionnel)</span>
+                {selectedVehicleIds.length > 0 && (
+                  <span className="text-amber-400 ml-1">
+                    ({selectedVehicleIds.length} sélectionné{selectedVehicleIds.length > 1 ? 's' : ''})
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {availableVehicles.map(vehicle => {
+                  const vDef   = VEHICLE_DEFS.find(d => d.id === vehicle.type);
+                  const sel    = selectedVehicleIds.includes(vehicle.id);
+                  const accent = sel ? '#f59e0b' : 'rgba(113,113,122,0.6)';
+                  const vNoise  = vDef?.noise  ?? 0;
+                  const vCombat = vDef?.combat ?? 0;
+                  return (
+                    <button
+                      key={vehicle.id}
+                      onClick={() => toggleVehicle(vehicle.id)}
+                      className="flex items-start justify-between px-2.5 py-2 rounded border text-left transition-all"
+                      style={{
+                        backgroundColor: sel ? 'rgba(245,158,11,0.12)' : 'rgba(15,15,20,0.7)',
+                        borderColor: sel ? 'rgba(245,158,11,0.5)' : 'rgba(63,63,70,0.5)',
+                      }}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-mono font-bold" style={{ color: accent }}>
+                          {vehicle.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-zinc-600">
+                          {vehicle.spaces} place{vehicle.spaces > 1 ? 's' : ''}
+                        </div>
+                        <div className="flex gap-1.5 items-center">
+                          {/* Noise dots */}
+                          <span className="flex gap-0.5">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                              <span key={i} className="w-1 h-1 rounded-full inline-block"
+                                style={{ backgroundColor: i < vNoise ? '#f97316' : 'rgba(60,60,60,0.6)' }}
+                              />
+                            ))}
+                          </span>
+                          {vCombat > 0 && (
+                            <span className="text-[9px] font-mono text-red-400">⚔ +{vCombat}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] font-mono font-bold" style={{ color: accent }}>
+                          <Gauge className="w-2.5 h-2.5 inline mr-0.5"/>
+                          {vDef ? `${Math.round(vDef.speed * 100)}%` : '—'}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Avertissement si quelqu'un marche */}
+              {selectedSurvivors.length > 0 && selectedVehicleIds.length > 0 && !allSeated && (
+                <div className="mt-2 flex items-start gap-1.5 text-[10px] font-mono text-amber-500/80 bg-amber-900/15 border border-amber-700/20 rounded px-2.5 py-2">
+                  <AlertCircle className="w-3 h-3 shrink-0 mt-0.5"/>
+                  <span>
+                    {totalSeats} place{totalSeats > 1 ? 's' : ''} pour {selectedSurvivors.length} survivants —
+                    certains marchent à pied → le groupe roule à vitesse de marche → <strong>aucun bonus de vitesse</strong>.
+                  </span>
+                </div>
+              )}
+
+              {/* Résumé vitesse effective */}
+              {selectedSurvivors.length > 0 && selectedVehicleIds.length > 0 && allSeated && effectiveSpeed > 0 && (
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono text-green-400/80 bg-green-900/10 border border-green-700/20 rounded px-2.5 py-2">
+                  <Gauge className="w-3 h-3 shrink-0"/>
+                  <span>
+                    Tous embarqués — vitesse effective :
+                    <strong className="ml-1 text-green-400">-{Math.round(effectiveSpeed * 100)}% durée</strong>
+                    {(() => {
+                      const slowest = embarkedVehicles.reduce((min, v) => {
+                        const s = VEHICLE_DEFS.find(d => d.id === v.type)?.speed ?? 0;
+                        return s < (VEHICLE_DEFS.find(d => d.id === min.type)?.speed ?? 0) ? v : min;
+                      });
+                      return <span className="text-zinc-500 ml-1">(limité par {slowest.name})</span>;
+                    })()}
+                  </span>
+                </div>
+              )}
+
+              {/* Résumé bruit */}
+              {selectedVehicleIds.length > 0 && maxVehicleNoise > 0 && (
+                <div className={`mt-1.5 flex items-center gap-1.5 text-[10px] font-mono rounded px-2.5 py-2 border ${
+                  maxVehicleNoise >= 3
+                    ? 'text-orange-400/80 bg-orange-900/10 border-orange-700/20'
+                    : 'text-yellow-600/80 bg-yellow-900/10 border-yellow-800/20'
+                }`}>
+                  <Volume2 className="w-3 h-3 shrink-0"/>
+                  <span>
+                    Bruit du convoi : niveau {maxVehicleNoise}/4 →
+                    <strong className="ml-1" style={{ color: maxVehicleNoise >= 3 ? '#f97316' : '#ca8a04' }}>
+                      +{Math.round(maxVehicleNoise * 25)}% risque de combat
+                    </strong>
+                    {maxVehicleNoise >= 3 && <span className="text-zinc-500 ml-1">(convoi très bruyant)</span>}
+                  </span>
+                </div>
+              )}
+
+              {/* Résumé combat véhicule */}
+              {selectedVehicleIds.length > 0 && totalVehicleCombat > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-mono text-red-400/80 bg-red-900/10 border border-red-700/20 rounded px-2.5 py-2">
+                  <Swords className="w-3 h-3 shrink-0"/>
+                  <span>
+                    Combat véhicule :
+                    <strong className="ml-1 text-red-400">+{totalVehicleCombat}</strong>
+                    <span className="text-zinc-500 ml-1">(armement du 4×4 blindé)</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Team cumulative stats */}
           {selectedSurvivors.length > 0 && (

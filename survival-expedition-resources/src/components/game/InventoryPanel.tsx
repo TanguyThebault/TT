@@ -83,7 +83,7 @@ const InventoryPanel: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-zinc-500">
-            <span className="text-[9px] font-mono uppercase tracking-wider">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
+            <span className="text-[10px] font-mono uppercase tracking-wider">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
             {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </div>
         </div>

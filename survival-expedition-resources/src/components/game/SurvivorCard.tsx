@@ -384,7 +384,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
               { key: 'medical',    label: 'Médical',     icon: <Stethoscope className="w-3 h-3" />, color: 'text-pink-400',
                 tooltip: "Améliore les soins sur le terrain et la récupération après blessure. Réduit les séquelles d'une expédition difficile." },
               { key: 'engineering',label: 'Ingénierie',  icon: <Cog className="w-3 h-3" />,         color: 'text-blue-400',
-                tooltip: "Facilite l'accès aux zones sécurisées et la récupération de matériaux spéciaux lors des expéditions." },
+                tooltip: "Améliore les chances de récupérer des matériaux rares et de l'équipement spécialisé. Utile dans les zones fortifiées comme les laboratoires ou les bases militaires." },
             ] as const).map(skill => {
               const base = survivor.skills[skill.key];
               const effective = getEffectiveSkill(skill.key);
@@ -471,7 +471,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
                               style={{ width: `${(eq.durability / eq.maxDurability) * 100}%` }}
                             />
                           </div>
-                          <span className="text-[9px] font-mono text-zinc-600">{eq.durability}/{eq.maxDurability}</span>
+                          <span className="text-[10px] font-mono text-zinc-600">{eq.durability}/{eq.maxDurability}</span>
                         </div>
                       </div>
                     ) : (
