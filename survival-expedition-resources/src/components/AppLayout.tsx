@@ -15,6 +15,8 @@ import GameLog from './game/GameLog';
 import CampLife from './game/CampLife';
 import TasksPanel from './game/TasksPanel';
 import TradingPanel from './game/TradingPanel';
+import GaragePanel from './game/GaragePanel';
+import DevPanel, { DEV_EMAIL } from './game/DevPanel';
 import ExpeditionResults from './game/ExpeditionResults';
 
 /* ── Film grain overlay (isolated so seed interval doesn't re-render siblings) */
@@ -71,12 +73,15 @@ const DayNightTint: React.FC = () => {
 };
 
 const AppLayout: React.FC = () => {
-  const { state } = useGame();
+  const { state, user } = useGame();
+  const isDevAccount = user?.email === DEV_EMAIL;
   const [activeTab, setActiveTab] = useState<GameTab>('base');
 
   const activeExpeditions    = state.expeditions.filter(e => !e.completed).length;
   const completedExpeditions = state.expeditions.filter(e => e.completed).length;
   const inactiveSurvivors    = state.survivors.filter(s => s.status === 'available').length;
+  const garageUnlocked       = (state.buildings['garage'] || 0) >= 1;
+  const pendingRecruits      = (state.pendingRecruits ?? []).length;
 
   /* ── Loading screen ──────────────────────────────────────────────────────── */
   if (!state.initialized) {
@@ -193,7 +198,9 @@ const AppLayout: React.FC = () => {
             activeExpeditions={activeExpeditions}
             completedExpeditions={completedExpeditions}
             inactiveSurvivors={inactiveSurvivors}
+            pendingRecruits={pendingRecruits}
             traderCampDiscovered={state.traderCampDiscovered}
+            garageUnlocked={garageUnlocked}
           />
 
           {/* Tab Content */}
@@ -205,6 +212,7 @@ const AppLayout: React.FC = () => {
               {activeTab === 'crafting'    && <CraftingPanel />}
               {activeTab === 'tasks'       && <TasksPanel />}
               {activeTab === 'trade'       && <TradingPanel />}
+              {activeTab === 'garage'      && <GaragePanel />}
             </div>
 
             {/* Sidebar */}
@@ -253,6 +261,9 @@ const AppLayout: React.FC = () => {
 
       {/* Expedition Results Modal */}
       <ExpeditionResults />
+
+      {/* Dev Panel — visible only for the dev account */}
+      {isDevAccount && <DevPanel />}
     </div>
   );
 };

@@ -173,17 +173,17 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'garage',
     name: 'Garage',
-    description: 'Réduire la durée des expéditions.',
+    description: 'Stocker des véhicules utilisables en expédition.',
     icon: 'Car',
     maxLevel: 5,
     baseCost: { scrap: 30, fuel: 15, materials: 10 },
     costMultiplier: 1.8,
     benefits: [
-      'Durée -10%',
-      'Durée -20%',
-      'Durée -30%',
-      'Durée -40%',
-      'Durée -50%',
+      '4 places de garage',
+      '8 places de garage',
+      '12 places de garage',
+      '16 places de garage',
+      '20 places de garage',
     ],
   },
   {
@@ -457,10 +457,6 @@ export function getMaxSurvivors(barracksLevel: number): number {
   return caps[Math.min(barracksLevel, 5)];
 }
 
-export function getExpeditionDurationMultiplier(garageLevel: number): number {
-  const mults = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5];
-  return mults[Math.min(garageLevel, 5)];
-}
 
 export function getDangerReduction(watchtowerLevel: number): number {
   const reds = [0, 0.05, 0.12, 0.20, 0.30, 0.40];
@@ -535,4 +531,36 @@ export function getRecycleYield(item: EquipmentDef, engineeringLevel: number): R
  */
 export function getEquipmentTradeValue(tier: number): number {
   return Math.pow(5, tier - 1);
+}
+
+// ── Garage / Vehicles ─────────────────────────────────────────────────────────
+
+export interface VehicleDef {
+  id: string;
+  name: string;
+  spaces: number;
+  /** Réduction de durée d'expédition (0–1). La vitesse du groupe est celle
+   *  du véhicule le plus lent. Si un survivant est à pied : aucun bonus. */
+  speed: number;
+  /** Niveau de bruit (0–4). Utilisé par le véhicule le plus bruyant du convoi.
+   *  Chaque point ajoute +0.25 au danger effectif de la zone. */
+  noise: number;
+  /** Bonus de combat ajouté à l'équipe lors des affrontements. */
+  combat: number;
+  description: string;
+}
+
+export const VEHICLE_DEFS: VehicleDef[] = [
+  //                                              speed  noise  combat
+  { id: 'bike',        name: 'Vélo',       spaces: 1,  speed: 0.12, noise: 0, combat:  0, description: 'Silencieux, passe partout, lent'          },
+  { id: 'moto',        name: 'Moto',       spaces: 2,  speed: 0.45, noise: 3, combat:  0, description: 'Rapide, bon franchissement, bruyant'        },
+  { id: 'compact',     name: 'Citadine',   spaces: 4,  speed: 0.08, noise: 1, combat:  0, description: 'Discret, mauvais hors-route'                },
+  { id: 'sedan',       name: 'Berline',    spaces: 6,  speed: 0.05, noise: 1, combat:  0, description: 'Spacieuse, très mauvais franchissement'     },
+  { id: 'suv',         name: '4×4',        spaces: 8,  speed: 0.30, noise: 3, combat:  0, description: 'Rapide, excellent tout-terrain, bruyant'    },
+  { id: 'armored_suv', name: '4×4 Blindé', spaces: 10, speed: 0.20, noise: 4, combat: 15, description: 'Blindé, armé, très bruyant'                 },
+];
+
+/** Capacité du garage en nombre de places selon le niveau (4 places par niveau). */
+export function getGarageCapacity(level: number): number {
+  return level * 4;
 }

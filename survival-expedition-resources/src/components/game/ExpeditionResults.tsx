@@ -3,7 +3,7 @@ import { useGame } from '@/contexts/GameContext';
 import { ZONES, RESOURCES } from '@/data/gameData';
 import {
   X, AlertTriangle, Heart, Sword, Shield, Backpack,
-  Check, ChevronRight, Search, Cog, Radio,
+  Check, ChevronRight, Search, Cog, Radio, UserPlus, Users,
 } from 'lucide-react';
 
 const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'text-purple-400', 'text-amber-400'];
@@ -70,6 +70,11 @@ const ExpeditionResults: React.FC = () => {
       </div>
     );
   }
+
+  // Recrue rencontrée pendant l'expédition
+  const recruitInResult = results.recruitId
+    ? (state.pendingRecruits ?? []).find(r => r.id === results.recruitId) ?? null
+    : null;
 
   // Survivors who went on this expedition
   const survivors = expedition.survivorIds
@@ -223,6 +228,54 @@ const ExpeditionResults: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Recrue ramenée par l'équipe */}
+          {recruitInResult && (
+            <div
+              className="rounded-lg border p-3 space-y-2"
+              style={{
+                backgroundColor: 'rgba(10, 20, 8, 0.80)',
+                borderColor: 'rgba(34,197,94,0.45)',
+                boxShadow: '0 0 12px rgba(34,197,94,0.08)',
+              }}
+            >
+              <h3 className="text-sm font-bold font-mono flex items-center gap-1.5" style={{ color: '#4ade80' }}>
+                <UserPlus className="w-4 h-4" />
+                Recrue rencontrée
+              </h3>
+
+              <div className="flex items-center gap-3">
+                {/* Initiale */}
+                <div
+                  className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0 text-sm font-bold font-mono"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', color: '#4ade80' }}
+                >
+                  {recruitInResult.survivor.name.charAt(0)}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-zinc-100 font-mono">{recruitInResult.survivor.name}</div>
+                  <div className="text-[10px] font-mono uppercase tracking-wide" style={{ color: 'rgba(74,222,128,0.75)' }}>
+                    {recruitInResult.survivor.trait}
+                  </div>
+                </div>
+                {/* Stats rapides */}
+                <div className="ml-auto flex gap-2 text-[11px] font-mono">
+                  <span className="flex items-center gap-0.5 text-red-400">
+                    <Sword className="w-3 h-3" />{recruitInResult.survivor.skills.combat}
+                  </span>
+                  <span className="flex items-center gap-0.5 text-green-400">
+                    <Search className="w-3 h-3" />{recruitInResult.survivor.skills.scavenging}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs font-mono text-zinc-400 border-t border-zinc-800/70 pt-2 flex items-start gap-1.5">
+                <Users className="w-3.5 h-3.5 text-green-500/60 flex-shrink-0 mt-0.5" />
+                Consultez l'onglet <span className="text-green-400 font-bold mx-1">Survivants</span>
+                pour accepter ou refuser cette recrue. L'offre expire dans 1 heure.
+              </p>
             </div>
           )}
 

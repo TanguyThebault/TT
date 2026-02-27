@@ -5,11 +5,12 @@ import type { User, Session } from '@supabase/supabase-js';
 import {
   BUILDINGS, ZONES, ALL_EQUIPMENT, CRAFT_RECIPES,
   SURVIVOR_FIRST_NAMES_MALE, SURVIVOR_FIRST_NAMES_FEMALE, SURVIVOR_LAST_NAMES, SURVIVOR_TRAITS,
-  getUpgradeCost, getStorageCapacity, getExpeditionDurationMultiplier,
+  getUpgradeCost, getStorageCapacity,
   getDangerReduction, getMaxSurvivors,
   getRecycleMinEngineering, getRecycleYield, getRecycleDuration,
   TRAINING_DURATIONS, TRAINING_BUILDING_REQ, TRAINING_STAT_LABELS, getTrainingBuildingLevel,
   RESOURCE_RARITY, getEquipmentTradeValue,
+  VEHICLE_DEFS, getGarageCapacity,
   type TrainableStat, type EquipmentDef,
 } from '@/data/gameData';
 
@@ -49,6 +50,19 @@ export interface RecycleTask {
   engineeringLevel: number;
 }
 
+export interface GarageVehicle {
+  id: string;
+  type: string;
+  name: string;
+  spaces: number;
+}
+
+export interface PendingRecruit {
+  id: string;
+  survivor: Survivor;
+  expiresAt: number; // timestamp expiration (now + 1h)
+}
+
 export interface TraderCamp {
   name: string;
   resources: Record<string, number>;
@@ -67,6 +81,10 @@ export interface Expedition {
   id: string;
   zoneId: string;
   survivorIds: string[];
+  vehicleIds: string[];    // véhicules embarqués (peut être vide)
+  speedReduction: number;  // réduction de durée effective appliquée (0–1)
+  vehicleNoise: number;    // bruit maximal du convoi (0–4)
+  vehicleCombat: number;   // bonus de combat total des véhicules
   startTime: number;
   duration: number;
   completed: boolean;
@@ -78,6 +96,7 @@ export interface ExpeditionResult {
   equipment: EquipmentDef[];
   events: string[];
   survivorDamage: Record<string, number>;
+  recruitId?: string; // ID du PendingRecruit généré lors de cette expédition
 }
 
 export interface GameState {
@@ -91,15 +110,17 @@ export interface GameState {
   traderCampDiscovered: boolean;
   traderCamp: TraderCamp | null;
   discoveredZones: string[];
+  garageVehicles: GarageVehicle[];
   gameLog: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[];
   pendingResults: Expedition | null;
+  pendingRecruits: PendingRecruit[];
   initialized: boolean;
 }
 
 type GameAction =
   | { type: 'INIT_GAME'; state: GameState }
   | { type: 'UPGRADE_BUILDING'; buildingId: string }
-  | { type: 'LAUNCH_EXPEDITION'; zoneId: string; survivorIds: string[] }
+  | { type: 'LAUNCH_EXPEDITION'; zoneId: string; survivorIds: string[]; vehicleIds: string[] }
   | { type: 'COMPLETE_EXPEDITION'; expeditionId: string }
   | { type: 'VIEW_RESULTS'; expedition: Expedition | null }
   | { type: 'COLLECT_RESULTS' }
@@ -116,6 +137,11 @@ type GameAction =
   | { type: 'CANCEL_TRAINING'; taskId: string }
   | { type: 'COMPLETE_TRAINING'; taskId: string }
   | { type: 'EXECUTE_TRADE'; give: TradeGive; receive: TradeReceive }
+  | { type: 'ADD_VEHICLE'; vehicleTypeId: string }
+  | { type: 'REMOVE_VEHICLE'; vehicleId: string }
+  | { type: 'DEV_SET_RESOURCE'; resourceId: string; value: number }
+  | { type: 'ACCEPT_RECRUIT'; recruitId: string }
+  | { type: 'DECLINE_RECRUIT'; recruitId: string }
   | { type: 'TICK' };
 
 function randomInt(min: number, max: number): number {
@@ -179,6 +205,15 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
   const equipment: EquipmentDef[] = [];
   const events: string[] = [];
   const survivorDamage: Record<string, number> = {};
+
+  // ── Stats des véhicules embarqués ──────────────────────────────────────────
+  const embarkedVehicles = (expedition.vehicleIds ?? [])
+    .map(id => state.garageVehicles.find(v => v.id === id))
+    .filter(Boolean) as GarageVehicle[];
+  const vehicleCombat   = embarkedVehicles.reduce((sum, v) => sum + (VEHICLE_DEFS.find(d => d.id === v.type)?.combat ?? 0), 0);
+  const maxVehicleNoise = embarkedVehicles.reduce((max, v) => Math.max(max, VEHICLE_DEFS.find(d => d.id === v.type)?.noise ?? 0), 0);
+  const noiseDangerBonus = maxVehicleNoise * 0.25;
+
   const teamScavenging = survivors.reduce((sum, s) => {
     let bonus = 0;
     if (s.equipment.backpack) bonus += s.equipment.backpack.stats.scavenging || 0;
@@ -190,10 +225,11 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
     if (s.equipment.weapon) bonus += s.equipment.weapon.stats.combat || 0;
     if (s.equipment.armor) bonus += s.equipment.armor.stats.combat || 0;
     return sum + s.skills.combat + bonus;
-  }, 0);
+  }, 0) + vehicleCombat;
+
   const watchtowerLevel = state.buildings['watchtower'] || 0;
   const dangerReduction = getDangerReduction(watchtowerLevel);
-  const effectiveDanger = Math.max(0, zone.dangerLevel * (1 - dangerReduction));
+  const effectiveDanger = Math.max(0, zone.dangerLevel * (1 - dangerReduction) + noiseDangerBonus);
   const scavBonus = 1 + teamScavenging * 0.05;
   for (const loot of zone.lootTable) {
     if (Math.random() < loot.chance * scavBonus) {
@@ -208,7 +244,11 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
   }
   const dangerRoll = Math.random() * 3.5;
   if (dangerRoll < effectiveDanger) {
-    const combatCheck = teamCombat / (survivors.length * 5);
+    // Message de bruit si le convoi a attiré les ennemis
+    if (maxVehicleNoise >= 2) {
+      events.push('Le bruit du convoi a attiré des rôdeurs dans la zone.');
+    }
+    const combatCheck = teamCombat / 5;
     if (combatCheck < Math.random() * effectiveDanger) {
       events.push('L\'équipe a été attaquée par des pillards !');
       survivors.forEach(s => {
@@ -217,7 +257,11 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
         survivorDamage[s.id] = Math.max(1, Math.floor(baseDmg - armorHP * 0.3));
       });
     } else {
-      events.push('L\'équipe a repoussé une attaque de pillards !');
+      if (vehicleCombat > 0) {
+        events.push('Le 4×4 blindé a repoussé l\'assaut ! Les pillards ont fui devant le blindage.');
+      } else {
+        events.push('L\'équipe a repoussé une attaque de pillards !');
+      }
       for (const key of Object.keys(resources)) { resources[key] = Math.floor(resources[key] * 1.2); }
     }
   }
@@ -254,6 +298,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         traderCampDiscovered: action.state.traderCampDiscovered ?? false,
         traderCamp:           action.state.traderCamp           ?? null,
         discoveredZones:      action.state.discoveredZones      ?? [],
+        garageVehicles:       action.state.garageVehicles       ?? [],
+        pendingRecruits:      action.state.pendingRecruits      ?? [],
+        // Migrer les expéditions sauvegardées sans vehicleIds/speedReduction/noise/combat
+        expeditions: (action.state.expeditions || []).map(e => ({
+          vehicleIds:     [],
+          speedReduction: 0,
+          vehicleNoise:   0,
+          vehicleCombat:  0,
+          ...e,
+        })),
       };
       const busyIds = new Set([
         ...s.recyclingTasks.map(t => t.survivorId),
@@ -305,16 +359,51 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'LAUNCH_EXPEDITION': {
       const zone = ZONES.find(z => z.id === action.zoneId);
       if (!zone) return state;
-      const garageLevel = state.buildings['garage'] || 0;
-      const duration = Math.floor(zone.baseDuration * getExpeditionDurationMultiplier(garageLevel));
-      const foodCost = Math.max(1, Math.ceil((duration / 60) * action.survivorIds.length));
+
+      // ── Calcul de la réduction de durée par les véhicules ──────────────────
+      // Règle : si un survivant n'a pas de place dans un véhicule, tout le groupe
+      // marche à la même vitesse → pas de bonus.
+      // Sinon, c'est le véhicule le plus lent qui donne la vitesse du groupe.
+      const embarkedVehicles = action.vehicleIds
+        .map(id => state.garageVehicles.find(v => v.id === id))
+        .filter(Boolean) as GarageVehicle[];
+      const totalSeats = embarkedVehicles.reduce((sum, v) => sum + v.spaces, 0);
+      const allSeated  = totalSeats >= action.survivorIds.length;
+      let speedReduction = 0;
+      if (allSeated && embarkedVehicles.length > 0) {
+        const speeds = embarkedVehicles.map(v => {
+          const def = VEHICLE_DEFS.find(d => d.id === v.type);
+          return def?.speed ?? 0;
+        });
+        speedReduction = Math.min(...speeds);
+      }
+
+      const duration  = Math.floor(zone.baseDuration * (1 - speedReduction));
+      const foodCost  = Math.max(1, Math.ceil((duration / 60) * action.survivorIds.length));
       if ((state.resources['food'] || 0) < foodCost) return state;
       const expeditionId = uuidv4();
-      const newSurvivors = state.survivors.map(s => action.survivorIds.includes(s.id) ? { ...s, status: 'expedition' as const, expeditionId } : s);
-      const newExpedition: Expedition = { id: expeditionId, zoneId: action.zoneId, survivorIds: action.survivorIds, startTime: Date.now(), duration, completed: false };
+      const newSurvivors = state.survivors.map(s =>
+        action.survivorIds.includes(s.id) ? { ...s, status: 'expedition' as const, expeditionId } : s
+      );
+      const expVehicleCombat = embarkedVehicles.reduce(
+        (sum, v) => sum + (VEHICLE_DEFS.find(d => d.id === v.type)?.combat ?? 0), 0
+      );
+      const expMaxNoise = embarkedVehicles.reduce(
+        (max, v) => Math.max(max, VEHICLE_DEFS.find(d => d.id === v.type)?.noise ?? 0), 0
+      );
+      const newExpedition: Expedition = {
+        id: expeditionId, zoneId: action.zoneId,
+        survivorIds: action.survivorIds, vehicleIds: action.vehicleIds,
+        speedReduction, vehicleNoise: expMaxNoise, vehicleCombat: expVehicleCombat,
+        startTime: Date.now(), duration, completed: false,
+      };
       const newRes = { ...state.resources, food: (state.resources['food'] || 0) - foodCost };
-      return { ...state, resources: newRes, survivors: newSurvivors, expeditions: [...state.expeditions, newExpedition],
-        gameLog: [{ id: uuidv4(), message: `Expédition lancée vers ${zone.name} — ${foodCost} nourriture consommée.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)] };
+      const speedMsg = speedReduction > 0 ? ` · -${Math.round(speedReduction * 100)}% durée` : '';
+      return {
+        ...state, resources: newRes, survivors: newSurvivors,
+        expeditions: [...state.expeditions, newExpedition],
+        gameLog: [{ id: uuidv4(), message: `Expédition lancée vers ${zone.name} — ${foodCost} nourriture consommée${speedMsg}.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
     }
     case 'COMPLETE_EXPEDITION': {
       const exp = state.expeditions.find(e => e.id === action.expeditionId);
@@ -407,13 +496,35 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state.gameLog.slice(0, 49),
       ];
 
+      // Recrutement — 1 chance sur 10 si de la place est disponible dans le camp
+      const barracksLevel2 = state.buildings['barracks'] || 0;
+      const newPendingRecruits = [...(state.pendingRecruits || [])];
+      let finalCompletedExp = completedExp;
+      if (newSurvivors.length < getMaxSurvivors(barracksLevel2) && Math.random() < 0.1) {
+        const candidate = generateSurvivor();
+        const recruitEntry = { id: uuidv4(), survivor: candidate, expiresAt: Date.now() + 3_600_000 };
+        newPendingRecruits.push(recruitEntry);
+        // Stocker l'ID dans le résultat pour l'afficher dans le rapport
+        finalCompletedExp = {
+          ...completedExp,
+          results: completedExp.results ? { ...completedExp.results, recruitId: recruitEntry.id } : completedExp.results,
+        };
+        newLogs.splice(1, 0, {
+          id: uuidv4(),
+          message: `${candidate.name} souhaite rejoindre votre camp — décidez dans l'heure !`,
+          time: Date.now(),
+          type: 'info' as const,
+        });
+      }
+
       return {
         ...state,
-        expeditions: state.expeditions.map(e => e.id === action.expeditionId ? completedExp : e),
+        expeditions: state.expeditions.map(e => e.id === action.expeditionId ? finalCompletedExp : e),
         survivors: newSurvivors,
         resources: clampResources(newRes, storageLevel),
         inventory: [...state.inventory, ...results.equipment],
-        pendingResults: completedExp,
+        pendingResults: finalCompletedExp,
+        pendingRecruits: newPendingRecruits,
         discoveredZones: newDiscoveredZones,
         gameLog: newLogs,
       };
@@ -649,6 +760,54 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }, ...state.gameLog.slice(0, 49)],
       };
     }
+    case 'ADD_VEHICLE': {
+      const vDef = VEHICLE_DEFS.find(v => v.id === action.vehicleTypeId);
+      if (!vDef) return state;
+      const garageLevel = state.buildings['garage'] || 0;
+      const capacity = getGarageCapacity(garageLevel);
+      const usedSpaces = state.garageVehicles.reduce((sum, v) => sum + v.spaces, 0);
+      if (usedSpaces + vDef.spaces > capacity) return state;
+      const newVehicle: GarageVehicle = { id: uuidv4(), type: vDef.id, name: vDef.name, spaces: vDef.spaces };
+      return {
+        ...state,
+        garageVehicles: [...state.garageVehicles, newVehicle],
+        gameLog: [{ id: uuidv4(), message: `${vDef.name} ajouté au garage.`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'DEV_SET_RESOURCE': {
+      const val = Math.max(0, Math.floor(action.value));
+      return { ...state, resources: { ...state.resources, [action.resourceId]: val } };
+    }
+    case 'REMOVE_VEHICLE': {
+      const vehicle = state.garageVehicles.find(v => v.id === action.vehicleId);
+      if (!vehicle) return state;
+      return {
+        ...state,
+        garageVehicles: state.garageVehicles.filter(v => v.id !== action.vehicleId),
+        gameLog: [{ id: uuidv4(), message: `${vehicle.name} retiré du garage.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'ACCEPT_RECRUIT': {
+      const recruit = (state.pendingRecruits || []).find(r => r.id === action.recruitId);
+      if (!recruit) return state;
+      const barracksLvl = state.buildings['barracks'] || 0;
+      if (state.survivors.length >= getMaxSurvivors(barracksLvl)) return state;
+      return {
+        ...state,
+        survivors: [...state.survivors, { ...recruit.survivor, status: 'available' as const }],
+        pendingRecruits: (state.pendingRecruits || []).filter(r => r.id !== action.recruitId),
+        gameLog: [{ id: uuidv4(), message: `${recruit.survivor.name} a rejoint votre camp !`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'DECLINE_RECRUIT': {
+      const recruit = (state.pendingRecruits || []).find(r => r.id === action.recruitId);
+      if (!recruit) return state;
+      return {
+        ...state,
+        pendingRecruits: (state.pendingRecruits || []).filter(r => r.id !== action.recruitId),
+        gameLog: [{ id: uuidv4(), message: `${recruit.survivor.name} a été refusé et a quitté les environs.`, time: Date.now(), type: 'warning' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
     case 'TICK': {
       const now = Date.now();
       const infirmaryLevel = state.buildings['infirmary'] || 0;
@@ -668,7 +827,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         return sv;
       });
       const changed = newSurvivors.some((s, i) => s !== state.survivors[i]);
-      return changed ? { ...state, survivors: newSurvivors } : state;
+      const freshRecruits = (state.pendingRecruits || []).filter(r => r.expiresAt > now);
+      const recruitsChanged = freshRecruits.length !== (state.pendingRecruits || []).length;
+      return (changed || recruitsChanged)
+        ? { ...state, survivors: newSurvivors, pendingRecruits: freshRecruits }
+        : state;
     }
     default: return state;
   }
@@ -680,10 +843,10 @@ function createInitialState(): GameState {
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
     buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [],
-    traderCampDiscovered: false, traderCamp: null, discoveredZones: [],
+    traderCampDiscovered: false, traderCamp: null, discoveredZones: [], garageVehicles: [],
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
-    pendingResults: null, initialized: false,
+    pendingResults: null, pendingRecruits: [], initialized: false,
   };
 }
 
@@ -693,7 +856,7 @@ interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   upgradeBuilding: (buildingId: string) => void;
-  launchExpedition: (zoneId: string, survivorIds: string[]) => void;
+  launchExpedition: (zoneId: string, survivorIds: string[], vehicleIds: string[]) => void;
   equipItem: (survivorId: string, item: EquipmentDef) => void;
   unequipItem: (survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => void;
   craftItem: (itemId: string) => void;
@@ -707,6 +870,10 @@ interface GameContextType {
   cancelTraining: (taskId: string) => void;
   executeTrade: (give: TradeGive, receive: TradeReceive) => void;
   repairItem: (survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => void;
+  addVehicle: (vehicleTypeId: string) => void;
+  removeVehicle: (vehicleId: string) => void;
+  acceptRecruit: (recruitId: string) => void;
+  declineRecruit: (recruitId: string) => void;
   // Auth
   user: User | null;
   authLoading: boolean;
@@ -890,7 +1057,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const upgradeBuilding = useCallback((buildingId: string) => { dispatch({ type: 'UPGRADE_BUILDING', buildingId }); }, []);
-  const launchExpedition = useCallback((zoneId: string, survivorIds: string[]) => { dispatch({ type: 'LAUNCH_EXPEDITION', zoneId, survivorIds }); }, []);
+  const launchExpedition = useCallback((zoneId: string, survivorIds: string[], vehicleIds: string[]) => { dispatch({ type: 'LAUNCH_EXPEDITION', zoneId, survivorIds, vehicleIds }); }, []);
   const equipItem = useCallback((survivorId: string, item: EquipmentDef) => { dispatch({ type: 'EQUIP_ITEM', survivorId, item }); }, []);
   const unequipItem = useCallback((survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => { dispatch({ type: 'UNEQUIP_ITEM', survivorId, slot }); }, []);
   const craftItem = useCallback((itemId: string) => { dispatch({ type: 'CRAFT_ITEM', itemId }); }, []);
@@ -904,6 +1071,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const cancelTraining = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_TRAINING', taskId }); }, []);
   const executeTrade   = useCallback((give: TradeGive, receive: TradeReceive) => { dispatch({ type: 'EXECUTE_TRADE', give, receive }); }, []);
   const repairItem     = useCallback((survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => { dispatch({ type: 'REPAIR_ITEM', survivorId, slot }); }, []);
+  const addVehicle     = useCallback((vehicleTypeId: string) => { dispatch({ type: 'ADD_VEHICLE', vehicleTypeId }); }, []);
+  const removeVehicle  = useCallback((vehicleId: string) => { dispatch({ type: 'REMOVE_VEHICLE', vehicleId }); }, []);
+  const acceptRecruit  = useCallback((recruitId: string) => { dispatch({ type: 'ACCEPT_RECRUIT', recruitId }); }, []);
+  const declineRecruit = useCallback((recruitId: string) => { dispatch({ type: 'DECLINE_RECRUIT', recruitId }); }, []);
 
   return (
     <GameContext.Provider value={{
@@ -911,6 +1082,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       equipItem, unequipItem, craftItem, healSurvivor,
       viewResults, collectResults, resetGame,
       startRecycle, cancelRecycle, startTraining, cancelTraining, executeTrade, repairItem,
+      addVehicle, removeVehicle, acceptRecruit, declineRecruit,
       user, authLoading, signIn, signUp, signOut,
       cloudSave, cloudLoad, cloudSaving, lastCloudSave,
     }}>

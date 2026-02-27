@@ -1,18 +1,22 @@
 import React from 'react';
 import { useGame } from '@/contexts/GameContext';
 import SurvivorCard from './SurvivorCard';
-import { Users, Package } from 'lucide-react';
+import PendingRecruitCard from './PendingRecruitCard';
+import { Users, Package, UserPlus } from 'lucide-react';
 import { getMaxSurvivors } from '@/data/gameData';
 
 const SurvivorRoster: React.FC = () => {
   const { state } = useGame();
   const barracksLevel = state.buildings['barracks'] || 0;
-  const maxSurvivors = getMaxSurvivors(barracksLevel);
+  const maxSurvivors  = getMaxSurvivors(barracksLevel);
+  const isCampFull    = state.survivors.length >= maxSurvivors;
 
   const available  = state.survivors.filter(s => s.status === 'available').length;
   const onMission  = state.survivors.filter(s => s.status === 'expedition').length;
   const onTask     = state.survivors.filter(s => s.status === 'recycling' || s.status === 'training').length;
   const injured    = state.survivors.filter(s => s.status === 'injured').length;
+
+  const pendingRecruits = state.pendingRecruits ?? [];
 
   return (
     <div className="space-y-3">
@@ -35,6 +39,24 @@ const SurvivorRoster: React.FC = () => {
         <Package className="w-3.5 h-3.5" />
         <span>Inventaire: {state.inventory.length} objet(s) non équipé(s)</span>
       </div>
+
+      {/* Recrues en attente */}
+      {pendingRecruits.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-0.5 h-4 bg-green-500/60" style={{ boxShadow: '0 0 4px rgba(74,222,128,0.5)' }} />
+            <h3 className="text-xs font-mono uppercase tracking-[0.2em] text-green-400/80 flex items-center gap-1.5">
+              <UserPlus className="w-3.5 h-3.5" />
+              Recrues en attente
+              <span className="text-green-600/60 font-bold">[{pendingRecruits.length}]</span>
+            </h3>
+            <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(74,222,128,0.25) 0%, transparent 100%)' }} />
+          </div>
+          {pendingRecruits.map(recruit => (
+            <PendingRecruitCard key={recruit.id} recruit={recruit} isCampFull={isCampFull} />
+          ))}
+        </div>
+      )}
 
       <div className="space-y-2">
         {state.survivors.map((survivor, index) => (
