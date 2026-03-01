@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ZONES, getExpeditionDurationMultiplier, getDangerReduction } from '@/data/gameData';
+import { ZONES, ZONE_CATEGORIES, getExpeditionDurationMultiplier, getDangerReduction } from '@/data/gameData';
 import SurvivorCard from './SurvivorCard';
 import {
   MapPin, AlertTriangle, Clock, Lock, Rocket, ChevronRight,
-  Home, Building2, Shield, HeartPulse, Factory, FlaskConical, ArrowLeft
+  Home, Building2, Shield, HeartPulse, Factory, FlaskConical, ArrowLeft, Trees
 } from 'lucide-react';
 
 
 const zoneIcons: Record<string, React.ReactNode> = {
+  Trees: <Trees className="w-5 h-5" />,
   Home: <Home className="w-5 h-5" />,
   Building2: <Building2 className="w-5 h-5" />,
   Shield: <Shield className="w-5 h-5" />,
   Cross: <HeartPulse className="w-5 h-5" />,
-
   Factory: <Factory className="w-5 h-5" />,
   FlaskConical: <FlaskConical className="w-5 h-5" />,
+};
+
+const categoryIcons: Record<string, React.ReactNode> = {
+  Trees:        <Trees className="w-4 h-4" />,
+  Home:         <Home className="w-4 h-4" />,
+  Factory:      <Factory className="w-4 h-4" />,
+  Shield:       <Shield className="w-4 h-4" />,
+  FlaskConical: <FlaskConical className="w-4 h-4" />,
 };
 
 const dangerLabels = ['', 'Faible', 'Modéré', 'Élevé', 'Très Élevé', 'Extrême'];
@@ -140,54 +148,71 @@ const ExpeditionLauncher: React.FC = () => {
         <MapPin className="w-5 h-5" />
         Zones d'Expédition
       </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {ZONES.map(zone => {
-          const req = zone.requiredBuildingLevel;
-          const isLocked = req ? (state.buildings[req.buildingId] || 0) < req.level : false;
-          const duration = Math.floor(zone.baseDuration * durationMult);
-          const minutes = Math.floor(duration / 60);
-          const seconds = duration % 60;
-          const timeStr = minutes > 0 ? `${minutes}m ${seconds > 0 ? seconds + 's' : ''}` : `${seconds}s`;
-
+      <div className="space-y-4">
+        {ZONE_CATEGORIES.map(cat => {
+          const catZones = ZONES.filter(z => z.category === cat.id);
+          if (catZones.length === 0) return null;
           return (
-            <button
-              key={zone.id}
-              onClick={() => !isLocked && setSelectedZone(zone.id)}
-              disabled={isLocked}
-              className={`text-left bg-zinc-900/60 border rounded-lg p-4 transition-all duration-200 ${
-                isLocked
-                  ? 'border-zinc-800 opacity-50 cursor-not-allowed'
-                  : 'border-zinc-700/50 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-900/10 cursor-pointer'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded ${isLocked ? 'bg-zinc-800 text-zinc-600' : 'bg-zinc-800 text-amber-500'}`}>
-                    {isLocked ? <Lock className="w-5 h-5" /> : zoneIcons[zone.icon]}
-                  </div>
-                  <div>
-                    <h3 className={`font-bold text-sm ${isLocked ? 'text-zinc-600' : 'text-zinc-200'}`}>{zone.name}</h3>
-                    {isLocked && req && (
-                      <span className="text-[10px] text-red-400 font-mono">
-                        Requis: Station Radio Nv.{req.level}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {!isLocked && <ChevronRight className="w-4 h-4 text-zinc-600" />}
-              </div>
-              <p className="text-xs text-zinc-500 mb-2">{zone.description}</p>
-              <div className="flex items-center gap-3 text-xs font-mono">
-                <span className={`flex items-center gap-1 ${dangerColors[zone.dangerLevel]}`}>
-                  <AlertTriangle className="w-3 h-3" />
-                  {dangerLabels[zone.dangerLevel]}
+            <div key={cat.id} className="space-y-2">
+              <div className="flex items-center gap-2 pb-1 border-b" style={{ borderColor: `${cat.color}33` }}>
+                <span style={{ color: cat.color }}>{categoryIcons[cat.icon]}</span>
+                <span className="text-xs font-bold font-mono uppercase tracking-widest" style={{ color: cat.color }}>
+                  {cat.name}
                 </span>
-                <span className="flex items-center gap-1 text-blue-400">
-                  <Clock className="w-3 h-3" />
-                  {timeStr}
-                </span>
+                <span className="text-[10px] font-mono text-zinc-600 ml-1">{cat.description}</span>
               </div>
-            </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {catZones.map(zone => {
+                  const req = zone.requiredBuildingLevel;
+                  const isLocked = req ? (state.buildings[req.buildingId] || 0) < req.level : false;
+                  const duration = Math.floor(zone.baseDuration * durationMult);
+                  const minutes = Math.floor(duration / 60);
+                  const seconds = duration % 60;
+                  const timeStr = minutes > 0 ? `${minutes}m ${seconds > 0 ? seconds + 's' : ''}` : `${seconds}s`;
+
+                  return (
+                    <button
+                      key={zone.id}
+                      onClick={() => !isLocked && setSelectedZone(zone.id)}
+                      disabled={isLocked}
+                      className={`text-left bg-zinc-900/60 border rounded-lg p-4 transition-all duration-200 ${
+                        isLocked
+                          ? 'border-zinc-800 opacity-50 cursor-not-allowed'
+                          : 'border-zinc-700/50 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-900/10 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-2 rounded ${isLocked ? 'bg-zinc-800 text-zinc-600' : 'bg-zinc-800 text-amber-500'}`}>
+                            {isLocked ? <Lock className="w-5 h-5" /> : zoneIcons[zone.icon]}
+                          </div>
+                          <div>
+                            <h3 className={`font-bold text-sm ${isLocked ? 'text-zinc-600' : 'text-zinc-200'}`}>{zone.name}</h3>
+                            {isLocked && req && (
+                              <span className="text-[10px] text-red-400 font-mono">
+                                Requis: Station Radio Nv.{req.level}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {!isLocked && <ChevronRight className="w-4 h-4 text-zinc-600" />}
+                      </div>
+                      <p className="text-xs text-zinc-500 mb-2">{zone.description}</p>
+                      <div className="flex items-center gap-3 text-xs font-mono">
+                        <span className={`flex items-center gap-1 ${dangerColors[zone.dangerLevel]}`}>
+                          <AlertTriangle className="w-3 h-3" />
+                          {dangerLabels[zone.dangerLevel]}
+                        </span>
+                        <span className="flex items-center gap-1 text-blue-400">
+                          <Clock className="w-3 h-3" />
+                          {timeStr}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>

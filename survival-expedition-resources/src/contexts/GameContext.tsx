@@ -7,12 +7,13 @@ import {
   SURVIVOR_FIRST_NAMES_MALE, SURVIVOR_FIRST_NAMES_FEMALE, SURVIVOR_LAST_NAMES, SURVIVOR_TRAITS,
   getUpgradeCost, getStorageCapacity,
   getDangerReduction, getMaxSurvivors,
-  getRecycleMinEngineering, getRecycleYield, getRecycleDuration,
+  getRecycleYield, getRecycleDuration, getCraftDuration,
   TRAINING_DURATIONS, TRAINING_BUILDING_REQ, TRAINING_STAT_LABELS, getTrainingBuildingLevel,
   RESOURCE_RARITY, getEquipmentTradeValue,
-  VEHICLE_DEFS, getGarageCapacity,
-  type TrainableStat, type EquipmentDef,
+  VEHICLE_DEFS, getGarageCapacity, getCategoryDef,
+  type TrainableStat, type EquipmentDef, type ZoneDef,
 } from '@/data/gameData';
+import { TILE_BY_ID, synthZoneDef } from '@/data/tileMap';
 
 // Types
 export interface Survivor {
@@ -24,11 +25,12 @@ export interface Survivor {
   health: number;
   maxHealth: number;
   equipment: { weapon: EquipmentDef | null; armor: EquipmentDef | null; backpack: EquipmentDef | null };
-  status: 'available' | 'expedition' | 'injured' | 'recycling' | 'training' | 'resting';
+  status: 'available' | 'expedition' | 'injured' | 'recycling' | 'training' | 'resting' | 'crafting';
   restingUntil?: number;
   expeditionId?: string;
   recycleTaskId?: string;
   trainingTaskId?: string;
+  craftTaskId?: string;
   trainingCounts?: Partial<Record<TrainableStat, number>>;
 }
 
@@ -44,6 +46,16 @@ export interface TrainingTask {
 export interface RecycleTask {
   id: string;
   survivorId: string;
+  item: EquipmentDef;
+  startTime: number;
+  duration: number;
+  engineeringLevel: number;
+}
+
+export interface CraftingTask {
+  id: string;
+  survivorId: string;
+  itemId: string;
   item: EquipmentDef;
   startTime: number;
   duration: number;
@@ -97,6 +109,7 @@ export interface ExpeditionResult {
   events: string[];
   survivorDamage: Record<string, number>;
   recruitId?: string; // ID du PendingRecruit généré lors de cette expédition
+  vehiclesFound?: string[]; // vehicleTypeIds (ex: 'bike', 'suv')
 }
 
 export interface GameState {
@@ -107,9 +120,11 @@ export interface GameState {
   inventory: EquipmentDef[];
   recyclingTasks: RecycleTask[];
   trainingTasks: TrainingTask[];
+  craftingTasks: CraftingTask[];
   traderCampDiscovered: boolean;
   traderCamp: TraderCamp | null;
   discoveredZones: string[];
+  discoveredTiles: string[];
   garageVehicles: GarageVehicle[];
   gameLog: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[];
   pendingResults: Expedition | null;
@@ -136,6 +151,9 @@ type GameAction =
   | { type: 'START_TRAINING'; survivorId: string; stat: TrainableStat }
   | { type: 'CANCEL_TRAINING'; taskId: string }
   | { type: 'COMPLETE_TRAINING'; taskId: string }
+  | { type: 'START_CRAFT'; survivorId: string; itemId: string }
+  | { type: 'CANCEL_CRAFT'; taskId: string }
+  | { type: 'COMPLETE_CRAFT'; taskId: string }
   | { type: 'EXECUTE_TRADE'; give: TradeGive; receive: TradeReceive }
   | { type: 'ADD_VEHICLE'; vehicleTypeId: string }
   | { type: 'REMOVE_VEHICLE'; vehicleId: string }
@@ -199,8 +217,7 @@ function generateSurvivor(): Survivor {
   };
 }
 
-function generateExpeditionResults(expedition: Expedition, survivors: Survivor[], state: GameState): ExpeditionResult {
-  const zone = ZONES.find(z => z.id === expedition.zoneId)!;
+function generateExpeditionResults(expedition: Expedition, survivors: Survivor[], state: GameState, zone: ZoneDef): ExpeditionResult {
   const resources: Record<string, number> = {};
   const equipment: EquipmentDef[] = [];
   const events: string[] = [];
@@ -236,12 +253,35 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
       if (loot.type === 'resource') {
         const qty = Math.floor(randomInt(loot.minQty, loot.maxQty) * scavBonus);
         resources[loot.id] = (resources[loot.id] || 0) + qty;
-      } else {
+      } else if (loot.type === 'equipment') {
         const eq = ALL_EQUIPMENT.find(e => e.id === loot.id);
         if (eq) equipment.push({ ...eq });
       }
     }
   }
+
+  // ── Butin de catégorie ────────────────────────────────────────────────────
+  const categoryDef = getCategoryDef(zone.category);
+  const vehiclesFound: string[] = [];
+  if (categoryDef && zone.dangerLevel > 0) {
+    const CATEGORY_CHANCE_SCALE = 0.6;
+    for (const loot of categoryDef.categoryLootTable) {
+      const adjustedChance = loot.chance * CATEGORY_CHANCE_SCALE * scavBonus;
+      if (Math.random() < adjustedChance) {
+        if (loot.type === 'resource') {
+          const qty = Math.floor(randomInt(loot.minQty, loot.maxQty) * scavBonus);
+          resources[loot.id] = (resources[loot.id] || 0) + qty;
+        } else if (loot.type === 'equipment') {
+          const eq = ALL_EQUIPMENT.find(e => e.id === loot.id);
+          if (eq) equipment.push({ ...eq });
+        } else if (loot.type === 'vehicle') {
+          vehiclesFound.push(loot.id);
+          events.push(`L'équipe a trouvé un véhicule : ${loot.name} !`);
+        }
+      }
+    }
+  }
+
   const dangerRoll = Math.random() * 3.5;
   if (dangerRoll < effectiveDanger) {
     // Message de bruit si le convoi a attiré les ennemis
@@ -269,8 +309,17 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
     events.push('La zone était presque vide. Maigre récolte.');
     resources['scrap'] = randomInt(1, 3);
   }
-  if (events.length === 0) events.push('Expédition sans incident. Bonne récolte !');
-  return { resources, equipment, events, survivorDamage };
+  if (events.length === 0) {
+    const useCategoryEvent =
+      categoryDef && categoryDef.categoryEvents.length > 0 && Math.random() < 0.5;
+    if (useCategoryEvent) {
+      const pool = categoryDef!.categoryEvents;
+      events.push(pool[Math.floor(Math.random() * pool.length)]);
+    } else {
+      events.push('Expédition sans incident. Bonne récolte !');
+    }
+  }
+  return { resources, equipment, events, survivorDamage, vehiclesFound };
 }
 
 // Returns null if item is destroyed (durability reached 0)
@@ -295,9 +344,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...action.state, initialized: true,
         recyclingTasks:       action.state.recyclingTasks       || [],
         trainingTasks:        action.state.trainingTasks        || [],
+        craftingTasks:        action.state.craftingTasks        || [],
         traderCampDiscovered: action.state.traderCampDiscovered ?? false,
         traderCamp:           action.state.traderCamp           ?? null,
         discoveredZones:      action.state.discoveredZones      ?? [],
+        discoveredTiles:      action.state.discoveredTiles      ?? [],
         garageVehicles:       action.state.garageVehicles       ?? [],
         pendingRecruits:      action.state.pendingRecruits      ?? [],
         // Migrer les expéditions sauvegardées sans vehicleIds/speedReduction/noise/combat
@@ -312,6 +363,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const busyIds = new Set([
         ...s.recyclingTasks.map(t => t.survivorId),
         ...s.trainingTasks.map(t => t.survivorId),
+        ...s.craftingTasks.map(t => t.survivorId),
       ]);
       // Migrate durability on equipment if missing (saves from before this feature)
       const migrateDur = (eq: EquipmentDef | null): EquipmentDef | null => {
@@ -324,8 +376,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...s,
         survivors: s.survivors.map(sv => {
-          const sv2 = (sv.status === 'recycling' || sv.status === 'training') && !busyIds.has(sv.id)
-            ? { ...sv, status: 'available' as const, recycleTaskId: undefined, trainingTaskId: undefined }
+          const sv2 = (sv.status === 'recycling' || sv.status === 'training' || sv.status === 'crafting') && !busyIds.has(sv.id)
+            ? { ...sv, status: 'available' as const, recycleTaskId: undefined, trainingTaskId: undefined, craftTaskId: undefined }
             : sv;
           return {
             ...sv2,
@@ -357,7 +409,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameLog: [{ id: uuidv4(), message: `${bDef.name} amélioré au niveau ${currentLevel + 1} !`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)] };
     }
     case 'LAUNCH_EXPEDITION': {
-      const zone = ZONES.find(z => z.id === action.zoneId);
+      const zone = ZONES.find(z => z.id === action.zoneId)
+        ?? (TILE_BY_ID.has(action.zoneId) ? synthZoneDef(TILE_BY_ID.get(action.zoneId)!) : null);
       if (!zone) return state;
 
       // ── Calcul de la réduction de durée par les véhicules ──────────────────
@@ -413,6 +466,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newDiscoveredZones = state.discoveredZones.includes(exp.zoneId)
         ? state.discoveredZones
         : [...state.discoveredZones, exp.zoneId];
+      const newDiscoveredTiles =
+        exp.zoneId.startsWith('t_') && !state.discoveredTiles.includes(exp.zoneId)
+          ? [...state.discoveredTiles, exp.zoneId]
+          : state.discoveredTiles;
       const restDuration = Math.ceil(exp.duration / 4);
 
       // Special case: contact mission — no loot, no damage
@@ -439,6 +496,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           traderCampDiscovered: true,
           traderCamp: newCamp,
           discoveredZones: newDiscoveredZones,
+          discoveredTiles: newDiscoveredTiles,
           gameLog: [{
             id: uuidv4(),
             message: alreadyKnown ? `Contact réaffirmé avec ${newCamp.name}.` : `Contact établi avec ${newCamp.name} !`,
@@ -447,10 +505,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      const results = generateExpeditionResults(exp, expSurvivors, state);
+      const zone = ZONES.find(z => z.id === exp.zoneId)
+        ?? (TILE_BY_ID.has(exp.zoneId) ? synthZoneDef(TILE_BY_ID.get(exp.zoneId)!) : null);
+      if (!zone) return state;
+
+      const results = generateExpeditionResults(exp, expSurvivors, state, zone);
       const completedExp = { ...exp, completed: true, results };
-      const zone = ZONES.find(z => z.id === exp.zoneId);
-      const dangerLevel = zone?.dangerLevel ?? 0;
+      const dangerLevel = zone.dangerLevel;
       const weaponWear  = dangerLevel * 12;
       const armorWear   = dangerLevel * 15;
       const packWear    = dangerLevel * 6;
@@ -490,7 +551,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       for (const [res, amt] of Object.entries(results.resources)) { newRes[res] = (newRes[res] || 0) + amt; }
 
       const newLogs = [
-        { id: uuidv4(), message: `Expédition vers ${zone?.name || 'zone inconnue'} terminée !`, time: Date.now(), type: 'success' as const },
+        { id: uuidv4(), message: `Expédition vers ${zone.name} terminée !`, time: Date.now(), type: 'success' as const },
         ...deadNames.map(n => ({ id: uuidv4(), message: `${n} a été tué(e) lors de l'expédition.`, time: Date.now(), type: 'danger' as const })),
         ...brokenNames.map(n => ({ id: uuidv4(), message: `${n} a été détruit(e) lors de l'expédition.`, time: Date.now(), type: 'warning' as const })),
         ...state.gameLog.slice(0, 49),
@@ -517,6 +578,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         });
       }
 
+      // Véhicules trouvés → ajouter au garage si capacité disponible
+      const garageCapacity = getGarageCapacity(state.buildings['garage'] || 0);
+      const newGarageVehicles = [...state.garageVehicles];
+      const foundVehicleTypeIds = finalCompletedExp.results?.vehiclesFound ?? [];
+      for (const vehicleTypeId of foundVehicleTypeIds) {
+        if (newGarageVehicles.length < garageCapacity) {
+          const vDef = VEHICLE_DEFS.find(d => d.id === vehicleTypeId);
+          newGarageVehicles.push({
+            id: uuidv4(),
+            type: vehicleTypeId,
+            name: vDef?.name ?? vehicleTypeId,
+            spaces: vDef?.spaces ?? 0,
+          });
+        }
+      }
+
       return {
         ...state,
         expeditions: state.expeditions.map(e => e.id === action.expeditionId ? finalCompletedExp : e),
@@ -526,6 +603,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         pendingResults: finalCompletedExp,
         pendingRecruits: newPendingRecruits,
         discoveredZones: newDiscoveredZones,
+        discoveredTiles: newDiscoveredTiles,
+        garageVehicles: newGarageVehicles,
         gameLog: newLogs,
       };
     }
@@ -599,7 +678,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const item = state.inventory[action.inventoryIndex];
       if (!item) return state;
       const engLevel = getEffectiveEngineering(survivor);
-      if (engLevel < getRecycleMinEngineering(item.tier)) return state;
       const taskId = uuidv4();
       const task: RecycleTask = {
         id: taskId, survivorId: survivor.id, item,
@@ -698,6 +776,62 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         recyclingTasks: state.recyclingTasks.filter(t => t.id !== action.taskId),
         survivors: newSurvivors,
         gameLog: [{ id: uuidv4(), message: `${survivor?.name || 'Survivant'} a recyclé ${task.item.name} (+${yieldStr} ressources).`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'START_CRAFT': {
+      const survivor = state.survivors.find(s => s.id === action.survivorId);
+      if (!survivor || survivor.status !== 'available') return state;
+      const eqDef = ALL_EQUIPMENT.find(e => e.id === action.itemId);
+      if (!eqDef) return state;
+      const recipe = CRAFT_RECIPES[action.itemId];
+      if (!recipe) return state;
+      if ((state.buildings['workshop'] || 0) < eqDef.tier) return state;
+      const newRes = { ...state.resources };
+      for (const [res, amt] of Object.entries(recipe)) { if ((newRes[res] || 0) < amt) return state; }
+      for (const [res, amt] of Object.entries(recipe)) { newRes[res] -= amt; }
+      const engLevel = getEffectiveEngineering(survivor);
+      const taskId = uuidv4();
+      const task: CraftingTask = {
+        id: taskId, survivorId: survivor.id, itemId: eqDef.id, item: { ...eqDef },
+        startTime: Date.now(), duration: getCraftDuration(eqDef.tier, engLevel), engineeringLevel: engLevel,
+      };
+      const newSurvivors = state.survivors.map(s =>
+        s.id === survivor.id ? { ...s, status: 'crafting' as const, craftTaskId: taskId } : s
+      );
+      return {
+        ...state, resources: newRes, survivors: newSurvivors,
+        craftingTasks: [...state.craftingTasks, task],
+        gameLog: [{ id: uuidv4(), message: `${survivor.name} commence à fabriquer ${eqDef.name}.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'CANCEL_CRAFT': {
+      const task = state.craftingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const recipe = CRAFT_RECIPES[task.itemId];
+      const newRes = { ...state.resources };
+      if (recipe) { for (const [res, amt] of Object.entries(recipe)) { newRes[res] = (newRes[res] || 0) + amt; } }
+      const newSurvivors = state.survivors.map(s =>
+        s.id === task.survivorId ? { ...s, status: 'available' as const, craftTaskId: undefined } : s
+      );
+      return {
+        ...state, resources: newRes, survivors: newSurvivors,
+        craftingTasks: state.craftingTasks.filter(t => t.id !== action.taskId),
+        gameLog: [{ id: uuidv4(), message: `Fabrication de ${task.item.name} annulée. Ressources remboursées.`, time: Date.now(), type: 'warning' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'COMPLETE_CRAFT': {
+      const task = state.craftingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const survivor = state.survivors.find(s => s.id === task.survivorId);
+      const newSurvivors = state.survivors.map(s =>
+        s.id === task.survivorId ? { ...s, status: 'available' as const, craftTaskId: undefined } : s
+      );
+      return {
+        ...state,
+        craftingTasks: state.craftingTasks.filter(t => t.id !== action.taskId),
+        survivors: newSurvivors,
+        inventory: [...state.inventory, { ...task.item }],
+        gameLog: [{ id: uuidv4(), message: `${survivor?.name || 'Survivant'} a fabriqué ${task.item.name} !`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
       };
     }
     case 'EXECUTE_TRADE': {
@@ -842,8 +976,8 @@ function createInitialState(): GameState {
   for (let i = 0; i < 4; i++) survivors.push(generateSurvivor());
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
-    buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [],
-    traderCampDiscovered: false, traderCamp: null, discoveredZones: [], garageVehicles: [],
+    buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [], craftingTasks: [],
+    traderCampDiscovered: false, traderCamp: null, discoveredZones: [], discoveredTiles: [], garageVehicles: [],
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
     pendingResults: null, pendingRecruits: [], initialized: false,
@@ -859,7 +993,8 @@ interface GameContextType {
   launchExpedition: (zoneId: string, survivorIds: string[], vehicleIds: string[]) => void;
   equipItem: (survivorId: string, item: EquipmentDef) => void;
   unequipItem: (survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => void;
-  craftItem: (itemId: string) => void;
+  startCraft: (survivorId: string, itemId: string) => void;
+  cancelCraft: (taskId: string) => void;
   healSurvivor: (survivorId: string) => void;
   viewResults: (expedition: Expedition | null) => void;
   collectResults: () => void;
@@ -1011,6 +1146,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Check crafting task completion every second
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const task of stateRef.current.craftingTasks) {
+        if (now >= task.startTime + task.duration * 1000) {
+          dispatch({ type: 'COMPLETE_CRAFT', taskId: task.id });
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
@@ -1060,7 +1208,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const launchExpedition = useCallback((zoneId: string, survivorIds: string[], vehicleIds: string[]) => { dispatch({ type: 'LAUNCH_EXPEDITION', zoneId, survivorIds, vehicleIds }); }, []);
   const equipItem = useCallback((survivorId: string, item: EquipmentDef) => { dispatch({ type: 'EQUIP_ITEM', survivorId, item }); }, []);
   const unequipItem = useCallback((survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => { dispatch({ type: 'UNEQUIP_ITEM', survivorId, slot }); }, []);
-  const craftItem = useCallback((itemId: string) => { dispatch({ type: 'CRAFT_ITEM', itemId }); }, []);
+  const startCraft  = useCallback((survivorId: string, itemId: string) => { dispatch({ type: 'START_CRAFT', survivorId, itemId }); }, []);
+  const cancelCraft = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_CRAFT', taskId }); }, []);
   const healSurvivor = useCallback((survivorId: string) => { dispatch({ type: 'HEAL_SURVIVOR', survivorId }); }, []);
   const viewResults = useCallback((expedition: Expedition | null) => { dispatch({ type: 'VIEW_RESULTS', expedition }); }, []);
   const collectResults = useCallback(() => { dispatch({ type: 'COLLECT_RESULTS' }); }, []);
@@ -1079,7 +1228,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   return (
     <GameContext.Provider value={{
       state, dispatch, upgradeBuilding, launchExpedition,
-      equipItem, unequipItem, craftItem, healSurvivor,
+      equipItem, unequipItem, healSurvivor,
+      startCraft, cancelCraft,
       viewResults, collectResults, resetGame,
       startRecycle, cancelRecycle, startTraining, cancelTraining, executeTrade, repairItem,
       addVehicle, removeVehicle, acceptRecruit, declineRecruit,

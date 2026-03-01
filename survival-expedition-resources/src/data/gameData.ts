@@ -18,15 +18,29 @@ export interface ZoneDef {
   dangerLevel: number; // 1-5
   lootTable: LootEntry[];
   requiredBuildingLevel?: { buildingId: string; level: number };
+  category?: ZoneCategory;
 }
 
 export interface LootEntry {
-  type: 'resource' | 'equipment';
+  type: 'resource' | 'equipment' | 'vehicle';
   id: string;
   name: string;
   minQty: number;
   maxQty: number;
   chance: number; // 0-1
+}
+
+export type ZoneCategory =
+  | 'sauvage' | 'residentiel' | 'industriel' | 'militaire' | 'scientifique';
+
+export interface CategoryDef {
+  id: ZoneCategory;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  categoryLootTable: LootEntry[];
+  categoryEvents: string[];
 }
 
 export interface EquipmentDef {
@@ -72,6 +86,109 @@ export const RESOURCE_RARITY: Record<string, number> = {
   medicine:    4,
   electronics: 6,
 };
+
+export const ZONE_CATEGORIES: CategoryDef[] = [
+  {
+    id: 'sauvage',
+    name: 'Sauvage',
+    description: 'Zones naturelles — forêts, plaines. Nourriture et abri.',
+    icon: 'Trees', color: '#3aaa3a',
+    categoryLootTable: [
+      { type: 'resource', id: 'food',      name: 'Nourriture (nature)', minQty: 3, maxQty: 10, chance: 0.55 },
+      { type: 'resource', id: 'materials', name: 'Bois flotté',         minQty: 2, maxQty: 6,  chance: 0.40 },
+      { type: 'vehicle',  id: 'bike',      name: 'Vélo abandonné',      minQty: 1, maxQty: 1,  chance: 0.06 },
+    ],
+    categoryEvents: [
+      'Un chevreuil surpris s\'enfuit dans les fourrés — quelques provisions récupérées.',
+      'Des baies sauvages abondantes jalonnent le sentier.',
+      'Un nid de frelons perturbé oblige à battre en retraite — aucun blessé, mais du temps perdu.',
+      'Une meute de chiens errants rôde. L\'équipe reste groupée et les dissuade.',
+      'Des traces fraîches révèlent le passage récent d\'autres survivants.',
+      'La végétation dense ralentit la progression mais offre une couverture idéale.',
+    ],
+  },
+  {
+    id: 'residentiel',
+    name: 'Résidentiel',
+    description: 'Anciens quartiers habités — maisons, immeubles, commerces. Les civils partis vite ont laissé beaucoup derrière eux.',
+    icon: 'Home', color: '#b08a50',
+    categoryLootTable: [
+      { type: 'resource', id: 'food',      name: 'Conserves',           minQty: 2, maxQty: 8, chance: 0.50 },
+      { type: 'resource', id: 'materials', name: 'Mobilier récup.',     minQty: 1, maxQty: 5, chance: 0.35 },
+      { type: 'resource', id: 'medicine',  name: 'Pharmacie maison',    minQty: 1, maxQty: 3, chance: 0.25 },
+      { type: 'vehicle',  id: 'bike',      name: 'Vélo dans un garage', minQty: 1, maxQty: 1, chance: 0.06 },
+      { type: 'vehicle',  id: 'compact',   name: 'Citadine garée',      minQty: 1, maxQty: 1, chance: 0.04 },
+    ],
+    categoryEvents: [
+      'Une cave verrouillée dissimulait des réserves de conserves oubliées depuis l\'exode.',
+      'L\'équipe fouille méthodiquement les appartements — les habitants sont partis vite.',
+      'Un pillard solitaire surpris dans une cuisine abandonnée prend la fuite sans combattre.',
+      'Une pharmacie de quartier effondrée recèle encore quelques médicaments sous les gravats.',
+      'Un garage ouvert révèle un véhicule oublié, les clés encore sur le contact.',
+      'Le quartier est silencieux. L\'équipe avance prudemment et repart sans incident.',
+    ],
+  },
+  {
+    id: 'industriel',
+    name: 'Industriel',
+    description: 'Usines, entrepôts et zones logistiques. Matériaux en masse, dangers structurels et toxiques.',
+    icon: 'Factory', color: '#c45828',
+    categoryLootTable: [
+      { type: 'resource', id: 'scrap', name: 'Ferraille industrielle', minQty: 4, maxQty: 14, chance: 0.60 },
+      { type: 'resource', id: 'fuel',  name: 'Réservoir résiduel',     minQty: 2, maxQty: 7,  chance: 0.35 },
+      { type: 'vehicle',  id: 'compact', name: 'Citadine de livreur',  minQty: 1, maxQty: 1,  chance: 0.04 },
+      { type: 'vehicle',  id: 'sedan',   name: 'Berline de contremaître', minQty: 1, maxQty: 1, chance: 0.03 },
+    ],
+    categoryEvents: [
+      'Une fuite de gaz oblige à évacuer un bâtiment — récolte partielle, équipe indemne.',
+      'Un plancher s\'effondre partiellement. Du matériel coincé sous les poutres est récupéré.',
+      'Des bidons de carburant renversés mais scellés découverts dans un dock de chargement.',
+      'L\'odeur de produits chimiques indique une zone contaminée — l\'équipe contourne.',
+      'Des machines encore sous tension crépitent — court-circuit, aucun incendie.',
+      'Un panneau de sécurité mène vers une réserve de matériaux d\'urgence intact.',
+      'Le parking d\'usine recèle plusieurs véhicules abandonnés en état variable.',
+    ],
+  },
+  {
+    id: 'militaire',
+    name: 'Militaire',
+    description: 'Bases et dépôts abandonnés. Équipements rares, mais patrouilles résiduelles et pièges.',
+    icon: 'Shield', color: '#4a9452',
+    categoryLootTable: [
+      { type: 'resource', id: 'fuel',        name: 'Jerricans militaires', minQty: 3, maxQty: 10, chance: 0.40 },
+      { type: 'resource', id: 'electronics', name: 'Matériel de comm.',    minQty: 1, maxQty: 4,  chance: 0.30 },
+      { type: 'vehicle',  id: 'suv',         name: '4×4 militaire',        minQty: 1, maxQty: 1,  chance: 0.03 },
+      { type: 'vehicle',  id: 'armored_suv', name: '4×4 blindé',           minQty: 1, maxQty: 1,  chance: 0.008 },
+    ],
+    categoryEvents: [
+      'Un camion militaire lourd est repéré dans un hangar — ses réservoirs sont encore pleins.',
+      'Une caisse d\'armes verrouillée résiste aux outils. On repart bredouille sur ce point.',
+      'Un véhicule blindé renversé sert de couverture pendant qu\'une patrouille passe au large.',
+      'Des pièges à câble désamorcés sans blessure ralentissent l\'avancée.',
+      'Un bunker partiellement ouvert révèle des stocks de rations militaires intacts.',
+      'Le poste de commandement est déserté — l\'équipement est intact, les cartes illisibles.',
+      'Un dépôt de carburant découvert derrière une rangée de barbelés — accès difficile mais rentable.',
+    ],
+  },
+  {
+    id: 'scientifique',
+    name: 'Scientifique',
+    description: 'Hôpitaux, laboratoires, instituts de recherche. Haute technologie et médicaments, risques biologiques élevés.',
+    icon: 'FlaskConical', color: '#8040c8',
+    categoryLootTable: [
+      { type: 'resource', id: 'medicine',    name: 'Produits pharmaceutiques', minQty: 2, maxQty: 8, chance: 0.45 },
+      { type: 'resource', id: 'electronics', name: 'Composants de labo',       minQty: 1, maxQty: 5, chance: 0.35 },
+    ],
+    categoryEvents: [
+      'Un sas de décontamination bloque une aile entière — contournement par les sorties de secours.',
+      'Des fioles non identifiées dans un réfrigérateur de secours encore alimenté — embarquées avec précaution.',
+      'L\'atmosphère est viciée dans plusieurs salles — rotations courtes pour limiter l\'exposition.',
+      'Des armoires à pharmacie scellées cèdent après quelques minutes — contenu intact.',
+      'Un terminal de secours encore actif révèle des données de recherche partielles.',
+      'Un autoclave en état de marche suggère que quelqu\'un est passé ici récemment.',
+    ],
+  },
+];
 
 export const BUILDINGS: BuildingDef[] = [
   {
@@ -157,17 +274,17 @@ export const BUILDINGS: BuildingDef[] = [
   {
     id: 'radio',
     name: 'Station Radio',
-    description: 'Déverrouiller de nouvelles zones d\'expédition.',
+    description: 'Étendre la portée des expéditions sur la carte.',
     icon: 'Radio',
     maxLevel: 5,
     baseCost: { scrap: 15, electronics: 20 },
     costMultiplier: 2.0,
     benefits: [
-      'Zone: Ruines Urbaines',
-      'Zone: Base Militaire',
-      'Zone: Hôpital Abandonné',
-      'Zone: Complexe Industriel',
-      'Zone: Laboratoire Secret',
+      'Portée des expéditions : ~200 km',
+      'Portée des expéditions : ~280 km',
+      'Portée des expéditions : ~360 km',
+      'Portée des expéditions : ~450 km',
+      'Portée illimitée — carte complète',
     ],
   },
   {
@@ -228,6 +345,7 @@ export const ZONES: ZoneDef[] = [
     icon: 'Trees',
     baseDuration: 240, // 4 min
     dangerLevel: 1,
+    category: 'sauvage',
     lootTable: [
       { type: 'resource', id: 'food', name: 'Nourriture', minQty: 8, maxQty: 20, chance: 0.95 },
       { type: 'resource', id: 'food', name: 'Nourriture (gibier)', minQty: 5, maxQty: 12, chance: 0.6 },
@@ -237,10 +355,11 @@ export const ZONES: ZoneDef[] = [
   {
     id: 'suburbs',
     name: 'Banlieue Dévastée',
-    description: 'Quartiers résidentiels en ruines. Faible danger, ressources basiques.',
+    description: 'Quartiers résidentiels en ruines. Danger modéré, ressources basiques.',
     icon: 'Home',
     baseDuration: 240, // 4 min
     dangerLevel: 2,
+    category: 'residentiel',
     lootTable: [
       { type: 'resource', id: 'food', name: 'Nourriture', minQty: 5, maxQty: 15, chance: 0.9 },
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 3, maxQty: 10, chance: 0.8 },
@@ -252,10 +371,11 @@ export const ZONES: ZoneDef[] = [
   {
     id: 'urban_ruins',
     name: 'Ruines Urbaines',
-    description: 'Centre-ville effondré. Danger modéré, bonnes ressources.',
+    description: 'Centre-ville effondré. Danger élevé, bonnes ressources.',
     icon: 'Building2',
     baseDuration: 600, // 10 min
     dangerLevel: 3,
+    category: 'residentiel',
     requiredBuildingLevel: { buildingId: 'radio', level: 1 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 8, maxQty: 25, chance: 0.9 },
@@ -268,10 +388,11 @@ export const ZONES: ZoneDef[] = [
   {
     id: 'military_base',
     name: 'Base Militaire',
-    description: 'Installation militaire abandonnée. Danger élevé, équipement rare.',
+    description: 'Installation militaire abandonnée. Danger extrême, équipements militaires.',
     icon: 'Shield',
     baseDuration: 1200, // 20 min
     dangerLevel: 5,
+    category: 'militaire',
     requiredBuildingLevel: { buildingId: 'radio', level: 2 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 10, maxQty: 30, chance: 0.8 },
@@ -288,16 +409,18 @@ export const ZONES: ZoneDef[] = [
     icon: 'Radio',
     baseDuration: 480, // 8 min
     dangerLevel: 0,
+    category: 'residentiel',
     requiredBuildingLevel: { buildingId: 'radio', level: 2 },
     lootTable: [],
   },
   {
     id: 'hospital',
     name: 'Hôpital Abandonné',
-    description: 'Ancien hôpital. Danger modéré, médicaments abondants.',
+    description: 'Ancien hôpital. Danger très élevé, médicaments abondants.',
     icon: 'Cross',
     baseDuration: 840, // 14 min
     dangerLevel: 4,
+    category: 'scientifique',
     requiredBuildingLevel: { buildingId: 'radio', level: 3 },
     lootTable: [
       { type: 'resource', id: 'medicine', name: 'Médicaments', minQty: 10, maxQty: 30, chance: 0.9 },
@@ -309,10 +432,11 @@ export const ZONES: ZoneDef[] = [
   {
     id: 'industrial',
     name: 'Complexe Industriel',
-    description: 'Usines et entrepôts. Danger élevé, matériaux en masse.',
+    description: 'Usines et entrepôts. Danger extrême, matériaux en masse.',
     icon: 'Factory',
     baseDuration: 1080, // 18 min
     dangerLevel: 5,
+    category: 'industriel',
     requiredBuildingLevel: { buildingId: 'radio', level: 4 },
     lootTable: [
       { type: 'resource', id: 'scrap', name: 'Ferraille', minQty: 15, maxQty: 40, chance: 0.95 },
@@ -329,6 +453,7 @@ export const ZONES: ZoneDef[] = [
     icon: 'FlaskConical',
     baseDuration: 1800, // 30 min
     dangerLevel: 5,
+    category: 'scientifique',
     requiredBuildingLevel: { buildingId: 'radio', level: 5 },
     lootTable: [
       { type: 'resource', id: 'electronics', name: 'Électronique', minQty: 15, maxQty: 40, chance: 0.9 },
@@ -505,6 +630,11 @@ export function getRecycleDuration(tier: number): number {
   return tier * 60;
 }
 
+/** Durée de fabrication en secondes. L'ingénierie réduit le temps de 5 % par niveau (plancher à 30 % du temps de base). */
+export function getCraftDuration(tier: number, engineeringLevel: number): number {
+  return Math.round(tier * 120 * Math.max(0.3, 1 - engineeringLevel * 0.05));
+}
+
 /**
  * Calcule le rendement de recyclage d'un objet.
  * Basé sur la recette de fabrication : taux de récupération entre 30 % (niveau minimal)
@@ -513,8 +643,7 @@ export function getRecycleDuration(tier: number): number {
 export function getRecycleYield(item: EquipmentDef, engineeringLevel: number): Record<string, number> {
   const recipe = CRAFT_RECIPES[item.id];
   if (!recipe) return { scrap: Math.max(1, Math.floor(item.tier * engineeringLevel * 0.3)) };
-  const minEng = getRecycleMinEngineering(item.tier);
-  const recoveryRate = Math.min(0.80, 0.30 + Math.max(0, engineeringLevel - minEng) * 0.05);
+  const recoveryRate = Math.min(0.80, 0.30 + engineeringLevel * 0.05);
   const result: Record<string, number> = {};
   for (const [res, amount] of Object.entries(recipe)) {
     const qty = Math.floor(amount * recoveryRate);
@@ -563,4 +692,9 @@ export const VEHICLE_DEFS: VehicleDef[] = [
 /** Capacité du garage en nombre de places selon le niveau (4 places par niveau). */
 export function getGarageCapacity(level: number): number {
   return level * 4;
+}
+
+export function getCategoryDef(category: ZoneCategory | undefined): CategoryDef | undefined {
+  if (!category) return undefined;
+  return ZONE_CATEGORIES.find(c => c.id === category);
 }

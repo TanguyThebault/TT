@@ -16,6 +16,7 @@ import CampLife from './game/CampLife';
 import TasksPanel from './game/TasksPanel';
 import TradingPanel from './game/TradingPanel';
 import GaragePanel from './game/GaragePanel';
+import LorePanel from './game/LorePanel';
 import DevPanel, { DEV_EMAIL } from './game/DevPanel';
 import ExpeditionResults from './game/ExpeditionResults';
 
@@ -205,22 +206,30 @@ const AppLayout: React.FC = () => {
 
           {/* Tab Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              {activeTab === 'base'        && <BaseBuildings />}
-              {activeTab === 'survivors'   && <SurvivorRoster />}
-              {activeTab === 'expeditions' && <ExpeditionMap />}
-              {activeTab === 'crafting'    && <CraftingPanel />}
-              {activeTab === 'tasks'       && <TasksPanel />}
-              {activeTab === 'trade'       && <TradingPanel />}
-              {activeTab === 'garage'      && <GaragePanel />}
-            </div>
+            {activeTab === 'lore' ? (
+              <div className="lg:col-span-3">
+                <LorePanel />
+              </div>
+            ) : (
+              <>
+                <div className="lg:col-span-2">
+                  {activeTab === 'base'        && <BaseBuildings />}
+                  {activeTab === 'survivors'   && <SurvivorRoster />}
+                  {activeTab === 'expeditions' && <ExpeditionMap />}
+                  {activeTab === 'crafting'    && <CraftingPanel />}
+                  {activeTab === 'tasks'       && <TasksPanel />}
+                  {activeTab === 'trade'       && <TradingPanel />}
+                  {activeTab === 'garage'      && <GaragePanel />}
+                </div>
 
-            {/* Sidebar */}
-            <div className="space-y-4">
-              <InventoryPanel />
-              <GameLog />
-              <CampLife />
-            </div>
+                {/* Sidebar */}
+                <div className="space-y-4">
+                  <InventoryPanel />
+                  <GameLog />
+                  <CampLife />
+                </div>
+              </>
+            )}
           </div>
         </main>
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ZONES, RESOURCES } from '@/data/gameData';
+import { ZONES, RESOURCES, VEHICLE_DEFS, getCategoryDef } from '@/data/gameData';
 import {
   X, AlertTriangle, Heart, Sword, Shield, Backpack,
-  Check, ChevronRight, Search, Cog, Radio, UserPlus, Users,
+  Check, ChevronRight, Search, Cog, Radio, UserPlus, Users, Car,
 } from 'lucide-react';
 
 const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'text-purple-400', 'text-amber-400'];
@@ -26,6 +26,7 @@ const ExpeditionResults: React.FC = () => {
 
   const zone    = ZONES.find(z => z.id === expedition.zoneId);
   const results = expedition.results;
+  const catDef  = zone?.category ? getCategoryDef(zone.category) : undefined;
 
   // ── Special case: contact mission ────────────────────────────────────────
   if (expedition.zoneId === 'signal_contact') {
@@ -114,6 +115,11 @@ const ExpeditionResults: React.FC = () => {
           <div>
             <h2 className="text-lg font-bold text-amber-500 font-mono">Rapport d'Expédition</h2>
             <p className="text-xs text-zinc-400 font-mono">{zone?.name || 'Zone inconnue'}</p>
+            {catDef && (
+              <p className="text-[10px] font-mono mt-0.5" style={{ color: catDef.color }}>
+                {catDef.name}
+              </p>
+            )}
           </div>
           <button onClick={collectResults} className="text-zinc-500 hover:text-zinc-300 p-1">
             <X className="w-5 h-5" />
@@ -227,6 +233,27 @@ const ExpeditionResults: React.FC = () => {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Vehicles found */}
+          {(results.vehiclesFound ?? []).length > 0 && (
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-zinc-300 font-mono flex items-center gap-1.5">
+                <Car className="w-4 h-4 text-amber-500" /> Véhicules Récupérés
+              </h3>
+              <div className="space-y-1">
+                {results.vehiclesFound!.map((typeId, i) => {
+                  const def = VEHICLE_DEFS.find(d => d.id === typeId);
+                  return def ? (
+                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded border border-amber-700/30">
+                      <Car className="w-3 h-3 text-amber-500" />
+                      <span className="text-[11px] font-mono text-zinc-300">{def.name}</span>
+                      <span className="text-[10px] font-mono text-zinc-600">{def.description}</span>
+                    </div>
+                  ) : null;
+                })}
               </div>
             </div>
           )}

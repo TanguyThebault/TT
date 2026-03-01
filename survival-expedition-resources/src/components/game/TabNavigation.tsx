@@ -1,9 +1,9 @@
 import React from 'react';
 import {
-  Warehouse, Users, MapPin, Hammer, ClipboardList, ArrowLeftRight, Car,
+  Warehouse, Users, MapPin, Hammer, ClipboardList, ArrowLeftRight, Car, BookOpen,
 } from 'lucide-react';
 
-export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting' | 'tasks' | 'trade' | 'garage';
+export type GameTab = 'base' | 'survivors' | 'expeditions' | 'crafting' | 'tasks' | 'lore' | 'trade' | 'garage';
 
 interface TabNavigationProps {
   activeTab: GameTab;
@@ -20,8 +20,9 @@ const BASE_TABS = [
   { id: 'base' as GameTab,        label: 'Base',        icon: <Warehouse className="w-4 h-4" /> },
   { id: 'survivors' as GameTab,   label: 'Survivants',  icon: <Users className="w-4 h-4" /> },
   { id: 'expeditions' as GameTab, label: 'Expéditions', icon: <MapPin className="w-4 h-4" /> },
-  { id: 'crafting' as GameTab,    label: 'Fabrication', icon: <Hammer className="w-4 h-4" /> },
+  { id: 'crafting' as GameTab,    label: 'Atelier',     icon: <Hammer className="w-4 h-4" /> },
   { id: 'tasks' as GameTab,       label: 'Tâches',      icon: <ClipboardList className="w-4 h-4" /> },
+  { id: 'lore' as GameTab,        label: 'Histoire',    icon: <BookOpen className="w-4 h-4" /> },
 ];
 
 const TRADE_TAB   = { id: 'trade'  as GameTab, label: 'Troc',   icon: <ArrowLeftRight className="w-4 h-4" /> };

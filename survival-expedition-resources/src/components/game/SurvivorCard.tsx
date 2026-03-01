@@ -221,7 +221,8 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
   const isRecycling    = survivor.status === 'recycling';
   const isTraining     = survivor.status === 'training';
   const isResting      = survivor.status === 'resting';
-  const isBusy         = isOnExpedition || isRecycling || isTraining;
+  const isCrafting     = survivor.status === 'crafting';
+  const isBusy         = isOnExpedition || isRecycling || isTraining || isCrafting;
 
   const restSecondsLeft = isResting && survivor.restingUntil
     ? Math.max(0, Math.ceil((survivor.restingUntil - now) / 1000))
@@ -260,6 +261,7 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
       selected          ? 'border-amber-500 shadow-lg shadow-amber-900/20' :
       isOnExpedition    ? 'border-blue-600/40 opacity-70' :
       isRecycling       ? 'border-amber-700/40 opacity-70' :
+      isCrafting        ? 'border-amber-700/40 opacity-70' :
       isTraining        ? 'border-blue-700/40 opacity-70' :
       isResting         ? 'border-violet-700/40 opacity-80' :
       isInjured         ? 'border-red-600/40' :
@@ -300,6 +302,11 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
             {isRecycling && (
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-700/30">
                 EN TÂCHE
+              </span>
+            )}
+            {isCrafting && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-700/30">
+                ATELIER
               </span>
             )}
             {isTraining && (
