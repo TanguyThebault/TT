@@ -21,12 +21,12 @@ const BASE_TABS = [
   { id: 'survivors' as GameTab,   label: 'Survivants',  icon: <Users className="w-4 h-4" /> },
   { id: 'expeditions' as GameTab, label: 'Expéditions', icon: <MapPin className="w-4 h-4" /> },
   { id: 'crafting' as GameTab,    label: 'Atelier',     icon: <Hammer className="w-4 h-4" /> },
-  { id: 'tasks' as GameTab,       label: 'Tâches',      icon: <ClipboardList className="w-4 h-4" /> },
-  { id: 'lore' as GameTab,        label: 'Histoire',    icon: <BookOpen className="w-4 h-4" /> },
 ];
 
-const TRADE_TAB   = { id: 'trade'  as GameTab, label: 'Troc',   icon: <ArrowLeftRight className="w-4 h-4" /> };
-const GARAGE_TAB  = { id: 'garage' as GameTab, label: 'Garage', icon: <Car className="w-4 h-4" /> };
+const TRADE_TAB   = { id: 'trade'  as GameTab, label: 'Troc',    icon: <ArrowLeftRight className="w-4 h-4" /> };
+const GARAGE_TAB  = { id: 'garage' as GameTab, label: 'Garage',  icon: <Car className="w-4 h-4" /> };
+const TASKS_TAB   = { id: 'tasks'  as GameTab, label: 'Tâches',  icon: <ClipboardList className="w-4 h-4" /> };
+const LORE_TAB    = { id: 'lore'   as GameTab, label: 'Histoire', icon: <BookOpen className="w-4 h-4" /> };
 
 const TabNavigation: React.FC<TabNavigationProps> = ({
   activeTab, onTabChange, activeExpeditions, completedExpeditions, inactiveSurvivors,
@@ -34,8 +34,10 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
 }) => {
   const tabs = [
     ...BASE_TABS,
-    ...(garageUnlocked    ? [GARAGE_TAB]  : []),
-    ...(traderCampDiscovered ? [TRADE_TAB] : []),
+    ...(garageUnlocked       ? [GARAGE_TAB] : []),
+    ...(traderCampDiscovered ? [TRADE_TAB]  : []),
+    TASKS_TAB,
+    LORE_TAB,
   ];
   return (
     <div className="flex gap-1 bg-zinc-900/60 border border-zinc-800 rounded-lg p-1">
