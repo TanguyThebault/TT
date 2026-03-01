@@ -17,6 +17,7 @@ export interface TileDef {
   category: ZoneCategory;
   dangerLevel: number;         // 1–5
   distanceFromBase: number;    // SVG units
+  factionId?: string;          // faction controlling this tile (if any)
 }
 
 // Mirror constants from mapData to avoid circular import
@@ -56,6 +57,18 @@ const CATEGORY_DANGER: Record<ZoneCategory, number> = {
   scientifique: 4,
   militaire:    5,
 };
+
+function assignFaction(lat: number, lon: number, category: ZoneCategory): string | undefined {
+  // Arvernes — Massif Central / Auvergne
+  if (lat >= 44.5 && lat <= 46.3 && lon >= 2.0 && lon <= 4.6) return 'arvernes';
+  // Tribu Verte — Massif des Vosges (nord-est)
+  if (lat >= 47.5 && lat <= 48.8 && lon >= 5.8 && lon <= 7.6) return 'tribu_verte';
+  // Pirates de la Loire — vallée de la Loire et côte atlantique
+  if (lat >= 46.8 && lat <= 48.2 && lon >= -3.5 && lon <= 1.5) return 'pirates_loire';
+  // Marshals — zones militaires sur l'axe Clermont-Bordeaux
+  if (category === 'militaire' && lat >= 44.5 && lat <= 47.0 && lon >= -2.0 && lon <= 4.0) return 'marshals';
+  return undefined;
+}
 
 function assignCategory(col: number, row: number, lat: number, lon: number): ZoneCategory {
   // Geographic rules first
@@ -108,6 +121,7 @@ export function generateTileGrid(): TileDef[] {
         col, row, x, y, cx, cy, lat, lon,
         category, dangerLevel,
         distanceFromBase: dist,
+        factionId: assignFaction(lat, lon, category),
       });
     }
   }

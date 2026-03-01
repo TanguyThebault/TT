@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import Header from './game/Header';
 import ResourceBar from './game/ResourceBar';
@@ -69,6 +69,44 @@ const DayNightTint: React.FC = () => {
     <div
       className="fixed inset-0 z-0 pointer-events-none"
       style={{ backgroundColor: tint.color, opacity: tint.opacity, transition: 'background-color 60s ease, opacity 60s ease' }}
+    />
+  );
+};
+
+/* ── Raid alert flash overlay (isolated to avoid re-rendering siblings) ── */
+const RaidAlert: React.FC = () => {
+  const { state } = useGame();
+  const [visible, setVisible] = useState(false);
+  const prevRaidAt = useRef<number | undefined>(undefined);
+  const initSynced = useRef(false);
+
+  useEffect(() => {
+    if (!state.initialized) return;
+    // First time after initialization: sync without triggering the alert
+    if (!initSynced.current) {
+      initSynced.current = true;
+      prevRaidAt.current = state.lastRaidAt;
+      return;
+    }
+    if (state.lastRaidAt !== undefined && state.lastRaidAt !== prevRaidAt.current) {
+      prevRaidAt.current = state.lastRaidAt;
+      setVisible(true);
+      const id = setTimeout(() => setVisible(false), 1500);
+      return () => clearTimeout(id);
+    }
+  }, [state.lastRaidAt, state.initialized]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[15] pointer-events-none"
+      style={{
+        backgroundColor: '#dc2626',
+        opacity: visible ? 0.18 : 0,
+        transition: visible ? 'opacity 0.08s ease-in' : 'opacity 1.2s ease-out',
+        boxShadow: visible
+          ? 'inset 0 0 140px rgba(220,38,38,0.55)'
+          : 'inset 0 0 0px rgba(220,38,38,0)',
+      }}
     />
   );
 };
@@ -267,6 +305,9 @@ const AppLayout: React.FC = () => {
         </footer>
 
       </div>
+
+      {/* Raid alert — red flash overlay */}
+      <RaidAlert />
 
       {/* Expedition Results Modal */}
       <ExpeditionResults />

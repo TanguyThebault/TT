@@ -3,7 +3,7 @@ import { useGame, type Survivor } from '@/contexts/GameContext';
 import { ALL_EQUIPMENT, type EquipmentDef } from '@/data/gameData';
 import {
   Sword, Shield, Backpack, Heart, Wrench, Search, Stethoscope, Cog,
-  ChevronDown, ChevronUp, X, Plus, Pill, Package, Moon
+  ChevronDown, ChevronUp, X, Plus, Pill, Package, Moon, UserX
 } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
@@ -203,9 +203,10 @@ const tierColors = ['', 'text-zinc-400', 'text-green-400', 'text-blue-400', 'tex
 const tierBorders = ['', 'border-zinc-600', 'border-green-600', 'border-blue-600', 'border-purple-600', 'border-amber-600'];
 
 const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selected, onToggleSelect }) => {
-  const { state, equipItem, unequipItem, healSurvivor, repairItem } = useGame();
+  const { state, equipItem, unequipItem, healSurvivor, repairItem, banSurvivor } = useGame();
   const [expanded, setExpanded] = useState(false);
   const [equipSlot, setEquipSlot] = useState<'weapon' | 'armor' | 'backpack' | null>(null);
+  const [confirmBan, setConfirmBan] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -567,6 +568,72 @@ const SurvivorCard: React.FC<SurvivorCardProps> = ({ survivor, selectable, selec
               Soigner ({healCost} médicaments)
             </button>
           )}
+
+          {/* Ban button */}
+          {!isBusy && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setConfirmBan(true)}
+                className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono transition-all text-zinc-700 hover:text-red-500 hover:bg-red-950/20"
+                title="Bannir du camp"
+              >
+                <UserX className="w-3 h-3" />
+                Bannir
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Confirmation bannissement ──────────────────────────────────────── */}
+      {confirmBan && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setConfirmBan(false)}
+        >
+          <div
+            className="wl-corner-lg border p-5 w-72 space-y-4"
+            style={{ borderColor: 'rgba(220,38,38,0.35)', backgroundColor: 'rgba(10,8,5,0.97)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Titre */}
+            <div className="flex items-center gap-2">
+              <div className="w-0.5 h-4 bg-red-600/70" />
+              <span className="text-xs font-mono uppercase tracking-[0.2em] text-red-400/80">
+                Bannir du camp
+              </span>
+            </div>
+
+            {/* Survivant concerné */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded border border-zinc-700/50 bg-zinc-900/50">
+              <UserX className="w-3.5 h-3.5 text-red-500/70" />
+              <span className="text-sm font-mono font-bold text-zinc-200">{survivor.name}</span>
+              <span className="text-[10px] font-mono text-amber-500/60 uppercase ml-1">
+                {survivor.trait}
+              </span>
+            </div>
+
+            <p className="text-xs font-mono text-zinc-400 leading-relaxed">
+              Ce survivant sera définitivement expulsé. Son équipement sera restitué à l'inventaire.
+            </p>
+
+            {/* Boutons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfirmBan(false)}
+                className="px-3 py-2 rounded border text-xs font-mono font-bold uppercase tracking-wider transition-colors border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { banSurvivor(survivor.id); setConfirmBan(false); }}
+                className="px-3 py-2 rounded border text-xs font-mono font-bold uppercase tracking-wider transition-colors bg-red-950/40 border-red-800/60 text-red-400 hover:bg-red-900/50 hover:border-red-600 hover:text-red-300"
+              >
+                Bannir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -240,12 +240,24 @@ const ExpeditionMap: React.FC = () => {
               const hasActive  = activeExps.some(e => e.zoneId === tile.id);
               const hasDone    = completedExps.some(e => e.zoneId === tile.id);
               const catDef     = getCategoryDef(tile.category)!;
+              const FACTION_COLORS: Record<string, string> = {
+                arvernes:      '#a3e635',
+                tribu_verte:   '#34d399',
+                pirates_loire: '#38bdf8',
+                marshals:      '#fb923c',
+              };
+              const factionColor = discovered && tile.factionId ? FACTION_COLORS[tile.factionId] : null;
+              const strokeColor = sel ? '#f59e0b'
+                : hasDone ? '#f59e0b55'
+                : hasActive ? '#60a5fa55'
+                : factionColor ? factionColor + '66'
+                : '#15151f';
               return (
                 <rect key={tile.id} x={tile.x} y={tile.y}
                   width={TILE_SIZE - 1} height={TILE_SIZE - 1} rx="1"
                   fill={discovered ? catDef.color + '28' : '#080810'}
-                  stroke={sel ? '#f59e0b' : hasDone ? '#f59e0b55' : hasActive ? '#60a5fa55' : '#15151f'}
-                  strokeWidth={sel || hasActive || hasDone ? 1.2 : 0.4}
+                  stroke={strokeColor}
+                  strokeWidth={sel || hasActive || hasDone ? 1.2 : factionColor && discovered ? 0.8 : 0.4}
                   onClick={() => handleZoneClick(tile.id)}
                   style={{ cursor: 'pointer' }}
                 />

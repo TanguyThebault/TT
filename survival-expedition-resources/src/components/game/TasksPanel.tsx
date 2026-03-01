@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { User, X, Clock, ChevronRight, Dumbbell, Lock, ArrowRight, Check } from 'lucide-react';
+import { User, X, Clock, ChevronRight, Dumbbell, Lock, ArrowRight, Check, HeartPulse, Wheat } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
-import type { TrainingTask, Survivor } from '@/contexts/GameContext';
+import type { TrainingTask, HealingTask, FarmingTask, Survivor } from '@/contexts/GameContext';
 import {
   BUILDINGS,
   TRAINING_DURATIONS, TRAINING_BUILDING_REQ, TRAINING_STAT_LABELS, getTrainingBuildingLevel,
+  HEALING_MEDICINE_FACTOR, FARM_BONUS_PER_FARMER,
   type TrainableStat,
 } from '@/data/gameData';
 
@@ -87,14 +88,93 @@ const TrainingTaskCard: React.FC<{ task: TrainingTask; now: number }> = ({ task,
   );
 };
 
+/* ── Healing active task card ─────────────────────────────────────────────── */
+
+const HealingTaskCard: React.FC<{ task: HealingTask; now: number }> = ({ task, now }) => {
+  const { state, cancelHealing } = useGame();
+  const healer  = state.survivors.find(s => s.id === task.healerId);
+  const target  = state.survivors.find(s => s.id === task.targetId);
+  const elapsed   = (now - task.startTime) / 1000;
+  const remaining = Math.max(0, task.duration - elapsed);
+  const progress  = Math.min(1, elapsed / task.duration);
+
+  return (
+    <div className="bg-zinc-900/60 border border-zinc-700/40 rounded-lg px-3 py-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <HeartPulse className="w-3.5 h-3.5 text-pink-500/70 shrink-0" />
+          <span className="text-xs font-mono font-semibold text-pink-400">Soin actif</span>
+        </div>
+        <button onClick={() => cancelHealing(task.id)} className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-300">
+        <User className="w-3 h-3 text-zinc-500 shrink-0" />
+        <span>{healer?.name ?? '—'}</span>
+        <ArrowRight className="w-3 h-3 text-zinc-600 shrink-0" />
+        <span>{target?.name ?? '—'}</span>
+        <span className="text-pink-400 ml-1">+{task.hpToRestore} PV</span>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Clock className="w-3 h-3 text-zinc-600" />
+          <span className="text-[10px] font-mono text-zinc-500">{formatDuration(remaining)} restant</span>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden bg-zinc-800">
+          <div className="h-full rounded-full transition-all duration-1000 bg-pink-600"
+            style={{ width: `${progress * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Farming active task card ─────────────────────────────────────────────── */
+
+const FarmingTaskCard: React.FC<{ task: FarmingTask; now: number }> = ({ task, now }) => {
+  const { state, cancelFarming } = useGame();
+  const survivor = state.survivors.find(s => s.id === task.survivorId);
+  const elapsed = Math.floor((now - task.startTime) / 1000);
+
+  return (
+    <div className="bg-zinc-900/60 border border-zinc-700/40 rounded-lg px-3 py-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Wheat className="w-3.5 h-3.5 text-green-500/70 shrink-0" />
+          <span className="text-xs font-mono font-semibold text-green-400">Cultivation</span>
+          <span className="text-[10px] font-mono text-green-600 border border-green-800/60 px-1 rounded">
+            +{FARM_BONUS_PER_FARMER} nourrit./min
+          </span>
+        </div>
+        <button onClick={() => cancelFarming(task.id)} className="text-zinc-600 hover:text-red-400 transition-colors shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <User className="w-3 h-3 text-zinc-500 shrink-0" />
+        <span className="text-[11px] font-mono text-zinc-300">{survivor?.name ?? '—'}</span>
+        <span className="text-[10px] font-mono text-zinc-500 ml-auto flex items-center gap-1">
+          <Clock className="w-3 h-3" />{formatDuration(elapsed)}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 /* ── Main panel ──────────────────────────────────────────────────────────── */
 
 const TasksPanel: React.FC = () => {
-  const { state, startTraining } = useGame();
+  const { state, startTraining, startHealing, startFarming } = useGame();
   const [now, setNow] = useState(Date.now());
 
   const [selectedTrainSurv, setSelectedTrainSurv] = useState<string | null>(null);
   const [selectedStat, setSelectedStat]           = useState<TrainableStat | null>(null);
+
+  // Healing step state
+  const [healStep, setHealStep]           = useState<1 | 2>(1);
+  const [selectedHealerId, setSelectedHealerId] = useState<string | null>(null);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -105,6 +185,12 @@ const TasksPanel: React.FC = () => {
     setSelectedTrainSurv(null);
     setSelectedStat(null);
   }, [state.trainingTasks.length]);
+
+  useEffect(() => {
+    setHealStep(1);
+    setSelectedHealerId(null);
+    setSelectedTargetId(null);
+  }, [state.healingTasks.length]);
 
   const availableForTraining = state.survivors.filter(s => s.status === 'available');
   const trainSurvivor = selectedTrainSurv
@@ -134,13 +220,41 @@ const TasksPanel: React.FC = () => {
     return !info.isMaxed && !info.isLocked && !info.isTrainingNow;
   })();
 
+  // ── Healing helpers ──────────────────────────────────────────────────────
+  const infirmaryLevel = state.buildings['infirmary'] || 0;
+  const availableHealers = state.survivors.filter(s => s.status === 'available')
+    .sort((a, b) => b.skills.medical - a.skills.medical);
+  const injuredTargets = state.survivors.filter(s => s.status === 'injured');
+
+  const healer = selectedHealerId ? state.survivors.find(s => s.id === selectedHealerId) ?? null : null;
+  const target = selectedTargetId ? state.survivors.find(s => s.id === selectedTargetId) ?? null : null;
+
+  const healPreview = healer && target ? (() => {
+    const hpMissing = target.maxHealth - target.health;
+    const medicineCost = Math.ceil(hpMissing * HEALING_MEDICINE_FACTOR);
+    const healerMedical = Math.max(1, healer.skills.medical);
+    const duration = Math.ceil(hpMissing / (healerMedical * 3)) * 60;
+    const canAfford = (state.resources['medicine'] || 0) >= medicineCost;
+    return { hpMissing, medicineCost, duration, canAfford };
+  })() : null;
+
+  function handleLaunchHealing() {
+    if (!selectedHealerId || !selectedTargetId) return;
+    startHealing(selectedHealerId, selectedTargetId);
+  }
+
+  // ── Farming helpers ──────────────────────────────────────────────────────
+  const farmLevel = state.buildings['farm'] || 0;
+  const farmingActive = state.farmingTasks.length > 0;
+  const availableForFarming = state.survivors.filter(s => s.status === 'available');
+
   return (
     <div className="space-y-3">
 
       {/* ── Title ────────────────────────────────────────────────────────── */}
       <h2 className="text-lg font-bold text-amber-500 font-mono uppercase tracking-wider flex items-center gap-2">
         <Dumbbell className="w-5 h-5" />
-        Tâches — Entraînement
+        Tâches — Camp
       </h2>
 
       {/* ── Entraînement ─────────────────────────────────────────────────── */}
@@ -299,6 +413,184 @@ const TasksPanel: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Soins actifs ──────────────────────────────────────────────────── */}
+      <div className="bg-zinc-900/60 border border-zinc-700/50 rounded-lg p-4 space-y-4">
+
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded bg-pink-950/60 text-pink-700 shrink-0">
+            <HeartPulse className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-200 text-sm">Soins actifs</h3>
+            <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
+              Un soignant traite un blessé pendant une durée variable. Coût réduit vs. soin instantané.
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+              <span className="text-[10px] font-mono text-zinc-600">Coût : ×{HEALING_MEDICINE_FACTOR} médicaments vs. ×0.2 instantané</span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+              <span className="text-[10px] font-mono text-pink-600">Requiert : Infirmerie Nv.1+</span>
+            </div>
+          </div>
+        </div>
+
+        {state.healingTasks.length > 0 && (
+          <div className="space-y-2">
+            <SectionDivider>En cours [{state.healingTasks.length}]</SectionDivider>
+            {state.healingTasks.map(task => <HealingTaskCard key={task.id} task={task} now={now} />)}
+          </div>
+        )}
+
+        {infirmaryLevel < 1 ? (
+          <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+            <Lock className="w-3 h-3 shrink-0" />
+            Infirmerie Nv.1 requise pour soigner activement.
+          </div>
+        ) : injuredTargets.length === 0 ? (
+          <p className="text-[11px] font-mono text-zinc-600 italic">Aucun survivant blessé.</p>
+        ) : availableHealers.length === 0 ? (
+          <p className="text-[11px] font-mono text-zinc-600 italic">Aucun soignant disponible.</p>
+        ) : (
+          <div className="space-y-3">
+            <SectionDivider>Nouvelle tâche</SectionDivider>
+
+            {/* Step 1 : choose healer */}
+            <div>
+              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">1 · Choisir le soignant</p>
+              <div className="space-y-1">
+                {availableHealers.map(s => {
+                  const isSel = selectedHealerId === s.id;
+                  return (
+                    <button key={s.id}
+                      onClick={() => { setSelectedHealerId(isSel ? null : s.id); setSelectedTargetId(null); setHealStep(isSel ? 1 : 2); }}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all ${
+                        isSel
+                          ? 'bg-pink-900/20 border border-pink-600/40'
+                          : 'border border-transparent hover:border-zinc-700/60 hover:bg-zinc-800/40'
+                      }`}>
+                      <User className="w-3 h-3 text-zinc-500 shrink-0" />
+                      <span className="text-[11px] font-mono text-zinc-200 flex-1 truncate">{s.name}</span>
+                      <span className="text-[10px] font-mono text-pink-400 shrink-0">médical {s.skills.medical}</span>
+                      {isSel && <ChevronRight className="w-3 h-3 text-pink-500 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2 : choose target */}
+            {healStep === 2 && healer && (
+              <div>
+                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">2 · Choisir la cible blessée</p>
+                <div className="space-y-1">
+                  {injuredTargets.map(s => {
+                    const isSel = selectedTargetId === s.id;
+                    const hpMissing = s.maxHealth - s.health;
+                    const cost = Math.ceil(hpMissing * HEALING_MEDICINE_FACTOR);
+                    return (
+                      <button key={s.id}
+                        onClick={() => setSelectedTargetId(isSel ? null : s.id)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all ${
+                          isSel
+                            ? 'bg-pink-900/20 border border-pink-600/40'
+                            : 'border border-transparent hover:border-zinc-700/60 hover:bg-zinc-800/40'
+                        }`}>
+                        <User className="w-3 h-3 text-zinc-500 shrink-0" />
+                        <span className="text-[11px] font-mono text-zinc-200 flex-1 truncate">{s.name}</span>
+                        <span className="text-[10px] font-mono text-red-400 shrink-0">{s.health}/{s.maxHealth} PV</span>
+                        <span className="text-[10px] font-mono text-zinc-500 shrink-0">{cost} 💊</span>
+                        {isSel && <ChevronRight className="w-3 h-3 text-pink-500 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Summary + launch */}
+            {healPreview && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] font-mono text-zinc-500">
+                  <span>Durée : <span className="text-zinc-300">{formatDuration(healPreview.duration)}</span></span>
+                  <span>Coût : <span className={healPreview.canAfford ? 'text-zinc-300' : 'text-red-400'}>{healPreview.medicineCost} médicament(s)</span></span>
+                  <span>HP restaurés : <span className="text-pink-400">+{healPreview.hpMissing}</span></span>
+                </div>
+                {healPreview.canAfford ? (
+                  <button
+                    onClick={handleLaunchHealing}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider transition-all bg-pink-700 hover:bg-pink-600 text-white"
+                  >
+                    <HeartPulse className="w-3 h-3" />
+                    Lancer le soin — {formatDuration(healPreview.duration)}
+                  </button>
+                ) : (
+                  <button disabled className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold font-mono uppercase tracking-wider bg-zinc-800 text-zinc-600 cursor-not-allowed">
+                    <Lock className="w-3 h-3" />
+                    Médicaments insuffisants ({healPreview.medicineCost} requis)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cultivation active ────────────────────────────────────────────── */}
+      <div className="bg-zinc-900/60 border border-zinc-700/50 rounded-lg p-4 space-y-4">
+
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded bg-green-950/60 text-green-700 shrink-0">
+            <Wheat className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-200 text-sm">Cultivation active</h3>
+            <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
+              Affecte un survivant à la ferme pour un boost manuel de production alimentaire.
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+              <span className="text-[10px] font-mono text-green-600">+{FARM_BONUS_PER_FARMER} nourrit./min par cultivateur (max 1)</span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+              <span className="text-[10px] font-mono text-zinc-600">Requiert : Ferme Nv.1+ · Durée libre</span>
+            </div>
+          </div>
+        </div>
+
+        {state.farmingTasks.length > 0 && (
+          <div className="space-y-2">
+            <SectionDivider>En cours</SectionDivider>
+            {state.farmingTasks.map(task => <FarmingTaskCard key={task.id} task={task} now={now} />)}
+          </div>
+        )}
+
+        {farmLevel < 1 ? (
+          <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-600">
+            <Lock className="w-3 h-3 shrink-0" />
+            Ferme Nv.1 requise pour la cultivation active.
+          </div>
+        ) : farmingActive ? (
+          <p className="text-[11px] font-mono text-zinc-600 italic">Un seul cultivateur autorisé simultanément.</p>
+        ) : availableForFarming.length === 0 ? (
+          <p className="text-[11px] font-mono text-zinc-600 italic">Aucun survivant disponible.</p>
+        ) : (
+          <div className="space-y-3">
+            <SectionDivider>Assigner un cultivateur</SectionDivider>
+            <div className="space-y-1">
+              {availableForFarming.map(s => (
+                <button key={s.id}
+                  onClick={() => startFarming(s.id)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left border border-transparent hover:border-green-700/50 hover:bg-green-950/20 transition-all">
+                  <User className="w-3 h-3 text-zinc-500 shrink-0" />
+                  <span className="text-[11px] font-mono text-zinc-200 flex-1 truncate">{s.name}</span>
+                  <span className="text-[10px] font-mono text-zinc-500 shrink-0">{s.trait}</span>
+                  <ArrowRight className="w-3 h-3 text-green-600 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
     </div>

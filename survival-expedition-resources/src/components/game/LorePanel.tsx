@@ -5,6 +5,7 @@ import {
   FACTIONS, CREATURES, LOCATIONS,
   type LoreFaction,
 } from '@/data/loreData';
+import { useGame } from '@/contexts/GameContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -263,13 +264,125 @@ function buildWorldContent(): React.ReactNode {
   );
 }
 
-function buildFactionContent(faction: LoreFaction): React.ReactNode {
+// ── Reputation bar ─────────────────────────────────────────────────────────────
+
+const FACTION_NAMES_DISPLAY: Record<string, string> = {
+  arvernes:      'Les Arvernes',
+  tribu_verte:   'La Tribu Verte',
+  pirates_loire: 'Les Pirates de la Loire',
+  marshals:      'Les Marshals',
+};
+
+function repColor(rep: number): string {
+  if (rep >= 4) return 'bg-green-500';
+  if (rep >= 1) return 'bg-green-700';
+  if (rep >= -1) return 'bg-zinc-600';
+  if (rep >= -4) return 'bg-orange-700';
+  return 'bg-red-600';
+}
+
+function repLabel(rep: number): string {
+  if (rep >= 7) return 'Allié';
+  if (rep >= 3) return 'Favorable';
+  if (rep >= 0) return 'Neutre';
+  if (rep >= -3) return 'Méfiant';
+  return 'Hostile';
+}
+
+function repTextColor(rep: number): string {
+  if (rep >= 3) return 'text-green-400';
+  if (rep >= 0) return 'text-zinc-400';
+  if (rep >= -3) return 'text-orange-400';
+  return 'text-red-400';
+}
+
+function ReputationBar({ rep }: { rep: number }) {
+  // rep is -10 to +10; render 20 slots
+  const filled = rep + 10; // 0..20
+  return (
+    <div className="flex gap-0.5 items-center">
+      {Array.from({ length: 20 }, (_, i) => (
+        <div
+          key={i}
+          className={`h-2 w-2 rounded-sm ${i < filled ? repColor(rep) : 'bg-zinc-800'}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function buildReputationContent(
+  factionReputation: Record<string, number>,
+  discoveredFactions: string[],
+): React.ReactNode {
+  if (discoveredFactions.length === 0) {
+    return (
+      <div className="space-y-4 font-mono text-[13px] text-zinc-300">
+        <div className="text-[10px] text-zinc-600 uppercase tracking-[0.3em] pb-3 border-b border-zinc-800/60">
+          Données relationnelles — statut inconnu
+        </div>
+        <p className="text-zinc-500 text-[12px] italic">
+          Aucune faction rencontrée pour l'instant. Partez en expédition sur des tuiles de faction pour établir des contacts.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 font-mono text-[13px] leading-relaxed text-zinc-300 max-w-3xl">
+      <div className="text-[10px] text-zinc-600 uppercase tracking-[0.3em] pb-3 border-b border-zinc-800/60">
+        Données relationnelles — rapport de terrain
+      </div>
+      <p className="text-zinc-400 text-[12px]">
+        La réputation mesure la relation entre votre camp et chaque faction, de −10 (hostilité déclarée) à +10 (alliance).
+        Elle évolue lors des rencontres en expédition.
+      </p>
+      <div className="space-y-5">
+        {discoveredFactions.map(fid => {
+          const rep = factionReputation[fid] ?? 0;
+          const fName = FACTION_NAMES_DISPLAY[fid] ?? fid;
+          const fData = FACTIONS.find(f => f.id === fid);
+          return (
+            <div key={fid} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-bold text-zinc-200">{fName}</span>
+                <span className={`text-[11px] font-bold ${repTextColor(rep)}`}>
+                  {rep >= 0 ? '+' : ''}{rep} — {repLabel(rep)}
+                </span>
+              </div>
+              <ReputationBar rep={rep} />
+              {fData && (
+                <p className="text-[11px] text-zinc-500 italic">{fData.attitude}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <DocEnd />
+    </div>
+  );
+}
+
+function buildFactionContent(faction: LoreFaction, reputation?: number): React.ReactNode {
+  const hasReputation = reputation !== undefined;
   return (
     <div className="space-y-6 font-mono text-[13px] leading-relaxed text-zinc-300 max-w-3xl">
 
       <div className="text-[10px] text-zinc-600 uppercase tracking-[0.3em] pb-3 border-b border-zinc-800/60">
         Rapport de terrain — {faction.source}
       </div>
+
+      {hasReputation && (
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">Réputation</span>
+            <span className={`text-[11px] font-bold ${repTextColor(reputation!)}`}>
+              {reputation! >= 0 ? '+' : ''}{reputation} — {repLabel(reputation!)}
+            </span>
+          </div>
+          <ReputationBar rep={reputation!} />
+        </div>
+      )}
 
       <div className="space-y-1">
         <div className="text-[10px] text-zinc-500 uppercase tracking-widest">{faction.location}</div>
@@ -485,44 +598,15 @@ function buildLocationsContent(): React.ReactNode {
   );
 }
 
-// ── Document catalogue ────────────────────────────────────────────────────────
+// ── Static docs (no game state) ───────────────────────────────────────────────
 
-const DOCS: LoreDoc[] = [
-  {
-    id: 'guide_commandant',
-    title: 'Guide du Commandant',
-    subtitle: 'Manuel opérationnel — usage interne',
-    group: 'fondamentaux',
-    content: buildTutorialContent(),
-  },
-  {
-    id: 'basculement',
-    title: 'Le Basculement',
-    subtitle: 'Rapport de synthèse — chronologie',
-    group: 'monde',
-    content: buildWorldContent(),
-  },
-  ...FACTIONS.map(faction => ({
-    id: `faction_${faction.id}`,
-    title: faction.name,
-    subtitle: faction.location,
-    group: 'factions',
-    content: buildFactionContent(faction),
-  })),
-  {
-    id: 'bestiaire',
-    title: 'Bestiaire Partiel',
-    subtitle: `${CREATURES.length} espèces documentées`,
-    group: 'bestiaire',
-    content: buildBestiaryContent(),
-  },
-  {
-    id: 'lieux_notables',
-    title: 'Sites Notables',
-    subtitle: `${LOCATIONS.length} emplacements référencés`,
-    group: 'lieux',
-    content: buildLocationsContent(),
-  },
+const STATIC_DOCS_BASE: Omit<LoreDoc, 'content'>[] = [
+  { id: 'guide_commandant', title: 'Guide du Commandant', subtitle: 'Manuel opérationnel — usage interne', group: 'fondamentaux' },
+  { id: 'basculement',      title: 'Le Basculement',      subtitle: 'Rapport de synthèse — chronologie',  group: 'monde' },
+  { id: 'reputation',       title: 'Réputation',           subtitle: 'Relations avec les factions',       group: 'factions' },
+  ...FACTIONS.map(f => ({ id: `faction_${f.id}`, title: f.name, subtitle: f.location, group: 'factions' })),
+  { id: 'bestiaire',        title: 'Bestiaire Partiel',   subtitle: `${CREATURES.length} espèces documentées`,       group: 'bestiaire' },
+  { id: 'lieux_notables',   title: 'Sites Notables',      subtitle: `${LOCATIONS.length} emplacements référencés`,   group: 'lieux' },
 ];
 
 // ── Sidebar group config ──────────────────────────────────────────────────────
@@ -538,7 +622,28 @@ const DOC_GROUPS = [
 // ── Main component ────────────────────────────────────────────────────────────
 
 const LorePanel: React.FC = () => {
-  const [selectedId, setSelectedId] = useState<string>(DOCS[0].id);
+  const { state } = useGame();
+  const [selectedId, setSelectedId] = useState<string>(STATIC_DOCS_BASE[0].id);
+
+  const factionReputation = state.factionReputation ?? {};
+  const discoveredFactions = state.discoveredFactions ?? [];
+
+  const DOCS: LoreDoc[] = STATIC_DOCS_BASE.map(base => {
+    let content: React.ReactNode;
+    if (base.id === 'guide_commandant') content = buildTutorialContent();
+    else if (base.id === 'basculement') content = buildWorldContent();
+    else if (base.id === 'reputation') content = buildReputationContent(factionReputation, discoveredFactions);
+    else if (base.id === 'bestiaire') content = buildBestiaryContent();
+    else if (base.id === 'lieux_notables') content = buildLocationsContent();
+    else {
+      const factionId = base.id.replace('faction_', '');
+      const faction = FACTIONS.find(f => f.id === factionId);
+      const rep = discoveredFactions.includes(factionId) ? (factionReputation[factionId] ?? 0) : undefined;
+      content = faction ? buildFactionContent(faction, rep) : null;
+    }
+    return { ...base, content };
+  });
+
   const doc = DOCS.find(d => d.id === selectedId) ?? DOCS[0];
 
   return (

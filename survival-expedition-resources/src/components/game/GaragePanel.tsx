@@ -125,6 +125,8 @@ const GaragePanel: React.FC = () => {
   cells.forEach((v, i) => { if (v && !firstCellOf.has(v.id)) firstCellOf.set(v.id, i); });
 
   const [hovered, setHovered] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<GarageVehicle | null>(null);
+  const removeStyle = pendingRemove ? getStyle(pendingRemove.type) : null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -257,7 +259,7 @@ const GaragePanel: React.FC = () => {
                         }}
                         onMouseEnter={() => vehicle && !onMission && setHovered(vehicle.id)}
                         onMouseLeave={() => setHovered(null)}
-                        onClick={() => vehicle && !onMission && removeVehicle(vehicle.id)}
+                        onClick={() => vehicle && !onMission && setPendingRemove(vehicle)}
                         title={
                           vehicle
                             ? onMission
@@ -400,7 +402,7 @@ const GaragePanel: React.FC = () => {
                     )}
                   </div>
                   <button
-                    onClick={() => !vehiclesInUse.has(v.id) && removeVehicle(v.id)}
+                    onClick={() => !vehiclesInUse.has(v.id) && setPendingRemove(v)}
                     disabled={vehiclesInUse.has(v.id)}
                     className={`transition-colors p-1 rounded ${vehiclesInUse.has(v.id) ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-red-400'}`}
                     title={vehiclesInUse.has(v.id) ? 'En expédition' : 'Retirer du garage'}
@@ -438,6 +440,60 @@ const GaragePanel: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Confirmation retrait véhicule ─────────────────────────────────── */}
+      {pendingRemove && removeStyle && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setPendingRemove(null)}
+        >
+          <div
+            className="wl-corner-lg border p-5 w-72 space-y-4"
+            style={{ borderColor: `${removeStyle.accent}55`, backgroundColor: 'rgba(10,8,5,0.97)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Titre */}
+            <div className="flex items-center gap-2">
+              <div className="w-0.5 h-4 bg-red-600/70" />
+              <span className="text-xs font-mono uppercase tracking-[0.2em] text-red-400/80">
+                Retirer du garage
+              </span>
+            </div>
+
+            {/* Véhicule concerné */}
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded border"
+              style={{ backgroundColor: `${removeStyle.accent}12`, borderColor: `${removeStyle.accent}35` }}
+            >
+              <span style={{ color: removeStyle.accent }}>{removeStyle.icon}</span>
+              <span className="text-sm font-mono font-bold" style={{ color: removeStyle.accent }}>
+                {pendingRemove.name}
+              </span>
+            </div>
+
+            <p className="text-xs font-mono text-zinc-400 leading-relaxed">
+              Ce véhicule sera définitivement retiré du garage. Cette action est irréversible.
+            </p>
+
+            {/* Boutons */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPendingRemove(null)}
+                className="px-3 py-2 rounded border text-xs font-mono font-bold uppercase tracking-wider transition-colors border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { removeVehicle(pendingRemove.id); setPendingRemove(null); }}
+                className="px-3 py-2 rounded border text-xs font-mono font-bold uppercase tracking-wider transition-colors bg-red-950/40 border-red-800/60 text-red-400 hover:bg-red-900/50 hover:border-red-600 hover:text-red-300"
+              >
+                Retirer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

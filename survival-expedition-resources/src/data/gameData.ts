@@ -701,3 +701,23 @@ export function getCategoryDef(category: ZoneCategory | undefined): CategoryDef 
   if (!category) return undefined;
   return ZONE_CATEGORIES.find(c => c.id === category);
 }
+
+// ── Threat mechanics ──────────────────────────────────────────────────────────
+
+/** Nourriture consommée par survivant (hors expédition) par heure. */
+export const FOOD_PER_SURVIVOR_PER_HOUR = 1;
+
+/** Nourriture produite par minute selon le niveau du potager. */
+export const FARM_FOOD_PER_MINUTE = [0, 1, 2, 4, 7, 10] as const;
+
+/** Probabilité de raid par tick (1 tick = 1 s). ~1 raid toutes les 15 min environ. */
+export const RAID_CHANCE_PER_TICK = 0.0011;
+
+/** Facteur de médicaments pour un soin actif (moitié du soin instantané). */
+export const HEALING_MEDICINE_FACTOR = 0.1;
+
+/** Bonus de nourriture par cultivateur actif (nourriture/min). */
+export const FARM_BONUS_PER_FARMER = 1;
+
+/** Délai minimum entre deux raids (ms). */
+export const RAID_COOLDOWN_MS = 300_000; // 5 minutes

@@ -11,6 +11,8 @@ import {
   TRAINING_DURATIONS, TRAINING_BUILDING_REQ, TRAINING_STAT_LABELS, getTrainingBuildingLevel,
   RESOURCE_RARITY, getEquipmentTradeValue,
   VEHICLE_DEFS, getGarageCapacity, getCategoryDef,
+  FOOD_PER_SURVIVOR_PER_HOUR, FARM_FOOD_PER_MINUTE, RAID_CHANCE_PER_TICK, RAID_COOLDOWN_MS,
+  HEALING_MEDICINE_FACTOR, FARM_BONUS_PER_FARMER,
   type TrainableStat, type EquipmentDef, type ZoneDef,
 } from '@/data/gameData';
 import { TILE_BY_ID, synthZoneDef } from '@/data/tileMap';
@@ -25,12 +27,14 @@ export interface Survivor {
   health: number;
   maxHealth: number;
   equipment: { weapon: EquipmentDef | null; armor: EquipmentDef | null; backpack: EquipmentDef | null };
-  status: 'available' | 'expedition' | 'injured' | 'recycling' | 'training' | 'resting' | 'crafting';
+  status: 'available' | 'expedition' | 'injured' | 'recycling' | 'training' | 'resting' | 'crafting' | 'healing' | 'farming';
   restingUntil?: number;
   expeditionId?: string;
   recycleTaskId?: string;
   trainingTaskId?: string;
   craftTaskId?: string;
+  healingTaskId?: string;
+  farmingTaskId?: string;
   trainingCounts?: Partial<Record<TrainableStat, number>>;
 }
 
@@ -62,6 +66,22 @@ export interface CraftingTask {
   engineeringLevel: number;
 }
 
+export interface HealingTask {
+  id: string;
+  healerId: string;
+  targetId: string;
+  startTime: number;
+  duration: number;
+  hpToRestore: number;
+  medicineCost: number;
+}
+
+export interface FarmingTask {
+  id: string;
+  survivorId: string;
+  startTime: number;
+}
+
 export interface GarageVehicle {
   id: string;
   type: string;
@@ -74,6 +94,19 @@ export interface VehicleMarker {
   tileId: string;
   vehicleTypeId: string;
   discoveredAt: number;
+}
+
+export interface PendingExpeditionEvent {
+  id: string;
+  type: 'ambush' | 'hidden_cache' | 'storm' | 'stranger' | 'vehicle_wreck' | 'faction_encounter';
+  title: string;
+  description: string;
+  options: [
+    { label: string; description: string },
+    { label: string; description: string },
+  ];
+  triggeredAt: number;
+  factionId?: string;
 }
 
 export interface PendingRecruit {
@@ -109,6 +142,9 @@ export interface Expedition {
   completed: boolean;
   results?: ExpeditionResult;
   retrievalMarkerId?: string; // si défini, c'est une expédition de récupération de véhicule
+  pendingEvent?: PendingExpeditionEvent;   // événement en attente de décision
+  resolvedEventChoice?: 0 | 1;            // choix fait par le joueur
+  eventTriggered?: boolean;               // empêche la génération d'un second événement
 }
 
 export interface ExpeditionResult {
@@ -131,6 +167,8 @@ export interface GameState {
   recyclingTasks: RecycleTask[];
   trainingTasks: TrainingTask[];
   craftingTasks: CraftingTask[];
+  healingTasks: HealingTask[];
+  farmingTasks: FarmingTask[];
   traderCampDiscovered: boolean;
   traderCamp: TraderCamp | null;
   discoveredZones: string[];
@@ -141,6 +179,12 @@ export interface GameState {
   pendingResults: Expedition | null;
   pendingRecruits: PendingRecruit[];
   initialized: boolean;
+  // Factions
+  factionReputation: Record<string, number>;  // −10 à +10 par faction
+  discoveredFactions: string[];
+  // Menaces
+  lastRaidAt?: number;    // timestamp du dernier raid
+  foodAccum: number;      // accumulation fractionnaire nourriture (farm − consommation)
 }
 
 type GameAction =
@@ -171,6 +215,13 @@ type GameAction =
   | { type: 'DEV_SET_RESOURCE'; resourceId: string; value: number }
   | { type: 'ACCEPT_RECRUIT'; recruitId: string }
   | { type: 'DECLINE_RECRUIT'; recruitId: string }
+  | { type: 'RESOLVE_EXPEDITION_EVENT'; expeditionId: string; choiceIndex: 0 | 1 }
+  | { type: 'BAN_SURVIVOR'; survivorId: string }
+  | { type: 'START_HEALING';   healerId: string; targetId: string }
+  | { type: 'CANCEL_HEALING';  taskId: string }
+  | { type: 'COMPLETE_HEALING'; taskId: string }
+  | { type: 'START_FARMING';   survivorId: string }
+  | { type: 'CANCEL_FARMING';  taskId: string }
   | { type: 'TICK' };
 
 function randomInt(min: number, max: number): number {
@@ -257,7 +308,19 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
 
   const watchtowerLevel = state.buildings['watchtower'] || 0;
   const dangerReduction = getDangerReduction(watchtowerLevel);
-  const effectiveDanger = Math.max(0, zone.dangerLevel * (1 - dangerReduction) + noiseDangerBonus);
+
+  // Faction reputation adjusts danger on faction tiles
+  let factionDangerMod = 0;
+  if (expedition.zoneId.startsWith('t_')) {
+    const tileData = TILE_BY_ID.get(expedition.zoneId);
+    if (tileData?.factionId) {
+      const rep = (state.factionReputation ?? {})[tileData.factionId] ?? 0;
+      if (rep > 0) factionDangerMod = -1;
+      else if (rep < -3) factionDangerMod = 1;
+    }
+  }
+
+  const effectiveDanger = Math.max(0, zone.dangerLevel * (1 - dangerReduction) + noiseDangerBonus + factionDangerMod);
   const scavBonus = 1 + teamScavenging * 0.05;
   for (const loot of zone.lootTable) {
     if (Math.random() < loot.chance * scavBonus) {
@@ -337,6 +400,195 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
   return { resources, equipment, events, survivorDamage, vehiclesFound };
 }
 
+// ── Faction name lookup ─────────────────────────────────────────────────────
+const FACTION_NAMES: Record<string, string> = {
+  arvernes:      'les Arvernes',
+  tribu_verte:   'la Tribu Verte',
+  pirates_loire: 'les Pirates de la Loire',
+  marshals:      'les Marshals',
+};
+
+// ── Expedition event definitions ────────────────────────────────────────────
+type EventDef = {
+  type: PendingExpeditionEvent['type'];
+  title: string;
+  description: string;
+  options: [{ label: string; description: string }, { label: string; description: string }];
+  condition?: (zone: ZoneDef) => boolean;
+};
+
+const EXPEDITION_EVENT_DEFS: EventDef[] = [
+  {
+    type: 'ambush',
+    title: 'Embuscade !',
+    description: 'Des pillards ont repéré votre équipe et se positionnent pour attaquer. Chaque seconde compte.',
+    options: [
+      { label: 'Fuir',     description: 'Battre en retraite — butin réduit de moitié, équipe indemne.' },
+      { label: 'Combattre', description: 'Repousser l\'attaque — butin ×1,5 mais blessures probables.' },
+    ],
+    condition: (z) => z.dangerLevel >= 3,
+  },
+  {
+    type: 'hidden_cache',
+    title: 'Cache Secrète',
+    description: 'L\'équipe découvre une cache dissimulée, visiblement non pillée. Fouiller prendra du temps.',
+    options: [
+      { label: 'Vider la cache', description: 'Fouiller méthodiquement — butin doublé.' },
+      { label: 'Continuer',      description: 'Ignorer et rentrer rapidement.' },
+    ],
+  },
+  {
+    type: 'storm',
+    title: 'Tempête Soudaine',
+    description: 'Un orage violent éclate sans prévenir. L\'équipe doit décider rapidement comment réagir.',
+    options: [
+      { label: 'S\'abriter',  description: 'Attendre la fin — récolte légèrement réduite (-20%).' },
+      { label: 'Continuer',   description: 'Braver les éléments — chaque survivant perd 10 PV.' },
+    ],
+  },
+  {
+    type: 'stranger',
+    title: 'Étranger en Détresse',
+    description: 'Un survivant isolé, blessé et épuisé, implore de l\'aide sur votre chemin de retour.',
+    options: [
+      { label: 'Aider',   description: 'Partager des vivres (-5 nourriture) — il pourrait rejoindre le camp.' },
+      { label: 'Ignorer', description: 'Continuer sans détour.' },
+    ],
+  },
+  {
+    type: 'vehicle_wreck',
+    title: 'Épave Découverte',
+    description: 'Une épave de véhicule à moitié dissimulée par la végétation. Elle semble récupérable.',
+    options: [
+      { label: 'Inspecter', description: 'Examiner l\'épave — marqueur posé pour une expédition de récupération.' },
+      { label: 'Ignorer',   description: 'Laisser l\'épave et continuer.' },
+    ],
+  },
+];
+
+function generateExpeditionEvent(exp: Expedition, zone: ZoneDef): PendingExpeditionEvent {
+  const tile = exp.zoneId.startsWith('t_') ? TILE_BY_ID.get(exp.zoneId) : undefined;
+  const factionId = tile?.factionId;
+
+  // Build eligible event list
+  const eligible = EXPEDITION_EVENT_DEFS.filter(def =>
+    !def.condition || def.condition(zone)
+  );
+  if (factionId) {
+    // Faction encounter possible on faction tiles
+    const factionName = FACTION_NAMES[factionId] ?? factionId;
+    const factionEvent: EventDef = {
+      type: 'faction_encounter',
+      title: 'Rencontre de Faction',
+      description: `Une patrouille de ${factionName} barre le chemin. L'ambiance est tendue.`,
+      options: [
+        { label: 'Négocier',  description: 'Proposer un accord (-5 ressources, +2 réputation).' },
+        { label: 'Intimider', description: 'Montrer de la force (+30% butin, -2 réputation).' },
+      ],
+    };
+    eligible.push(factionEvent as EventDef);
+  }
+
+  const def = eligible[Math.floor(Math.random() * eligible.length)];
+  return {
+    id: uuidv4(),
+    type: def.type,
+    title: def.title,
+    description: def.description,
+    options: def.options,
+    triggeredAt: Date.now(),
+    factionId: def.type === 'faction_encounter' ? factionId : undefined,
+  };
+}
+
+// Applies event choice effects on top of generated results.
+// Returns modified results + optional faction rep change.
+function applyEventEffects(
+  event: PendingExpeditionEvent,
+  choice: 0 | 1,
+  results: ExpeditionResult,
+  survivors: Survivor[],
+): {
+  results: ExpeditionResult;
+  extraDamage: Record<string, number>;
+  factionRepDelta?: { id: string; delta: number };
+  extraLogs: string[];
+  strangerHelped?: boolean;
+  vehicleWreckInspected?: boolean;
+  foodCost?: number;
+} {
+  const res = { ...results, resources: { ...results.resources } };
+  const extraDamage: Record<string, number> = {};
+  const extraLogs: string[] = [];
+  let factionRepDelta: { id: string; delta: number } | undefined;
+  let strangerHelped = false;
+  let vehicleWreckInspected = false;
+  let foodCost = 0;
+
+  switch (event.type) {
+    case 'ambush':
+      if (choice === 0) {
+        for (const k of Object.keys(res.resources)) res.resources[k] = Math.floor(res.resources[k] * 0.5);
+        extraLogs.push('L\'équipe a fui l\'embuscade — butin réduit de moitié.');
+      } else {
+        for (const k of Object.keys(res.resources)) res.resources[k] = Math.floor(res.resources[k] * 1.5);
+        survivors.forEach(s => { extraDamage[s.id] = (extraDamage[s.id] || 0) + randomInt(10, 25); });
+        extraLogs.push('L\'équipe a combattu et repoussé l\'embuscade — butin augmenté mais blessures reçues.');
+      }
+      break;
+    case 'hidden_cache':
+      if (choice === 0) {
+        for (const k of Object.keys(res.resources)) res.resources[k] = Math.floor(res.resources[k] * 2);
+        if (Object.keys(res.resources).length === 0) res.resources['scrap'] = randomInt(5, 15);
+        extraLogs.push('La cache secrète a été pillée — butin doublé !');
+      } else {
+        extraLogs.push('L\'équipe a ignoré la cache et est rentrée rapidement.');
+      }
+      break;
+    case 'storm':
+      if (choice === 0) {
+        for (const k of Object.keys(res.resources)) res.resources[k] = Math.floor(res.resources[k] * 0.8);
+        extraLogs.push('L\'équipe s\'est abritée — récolte légèrement réduite, survivants indemnes.');
+      } else {
+        survivors.forEach(s => { extraDamage[s.id] = (extraDamage[s.id] || 0) + 10; });
+        extraLogs.push('L\'équipe a traversé la tempête — tous blessés mais récolte intacte.');
+      }
+      break;
+    case 'stranger':
+      if (choice === 0) {
+        foodCost = 5;
+        strangerHelped = true;
+        extraLogs.push('L\'équipe a aidé l\'étranger — il pourrait rejoindre le camp !');
+      } else {
+        extraLogs.push('L\'équipe a continué son chemin.');
+      }
+      break;
+    case 'vehicle_wreck':
+      if (choice === 0) {
+        vehicleWreckInspected = true;
+        extraLogs.push('L\'épave a été inspectée — marqueur posé pour récupération.');
+      } else {
+        extraLogs.push('L\'épave a été ignorée.');
+      }
+      break;
+    case 'faction_encounter':
+      if (event.factionId) {
+        if (choice === 0) {
+          factionRepDelta = { id: event.factionId, delta: 2 };
+          foodCost = 5;
+          extraLogs.push(`Accord passé avec ${FACTION_NAMES[event.factionId] ?? event.factionId} — réputation +2.`);
+        } else {
+          factionRepDelta = { id: event.factionId, delta: -2 };
+          for (const k of Object.keys(res.resources)) res.resources[k] = Math.floor(res.resources[k] * 1.3);
+          extraLogs.push(`${FACTION_NAMES[event.factionId] ?? event.factionId} intimidés — butin amélioré mais réputation dégradée.`);
+        }
+      }
+      break;
+  }
+
+  return { results: res, extraDamage, factionRepDelta, extraLogs, strangerHelped, vehicleWreckInspected, foodCost };
+}
+
 // Returns null if item is destroyed (durability reached 0)
 function damageItem(item: EquipmentDef | null, wear: number): EquipmentDef | null {
   if (!item || wear === 0) return item;
@@ -360,6 +612,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         recyclingTasks:       action.state.recyclingTasks       || [],
         trainingTasks:        action.state.trainingTasks        || [],
         craftingTasks:        action.state.craftingTasks        || [],
+        healingTasks:         action.state.healingTasks         ?? [],
+        farmingTasks:         action.state.farmingTasks         ?? [],
         traderCampDiscovered: action.state.traderCampDiscovered ?? false,
         traderCamp:           action.state.traderCamp           ?? null,
         discoveredZones:      action.state.discoveredZones      ?? [],
@@ -367,6 +621,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         garageVehicles:       action.state.garageVehicles       ?? [],
         vehicleMarkers:       action.state.vehicleMarkers       ?? [],
         pendingRecruits:      action.state.pendingRecruits      ?? [],
+        factionReputation:    action.state.factionReputation    ?? {},
+        discoveredFactions:   action.state.discoveredFactions   ?? [],
+        foodAccum:            action.state.foodAccum            ?? 0,
         // Migrer les expéditions sauvegardées sans vehicleIds/speedReduction/noise/combat
         expeditions: (action.state.expeditions || []).map(e => ({
           vehicleIds:     [],
@@ -380,6 +637,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...s.recyclingTasks.map(t => t.survivorId),
         ...s.trainingTasks.map(t => t.survivorId),
         ...s.craftingTasks.map(t => t.survivorId),
+        ...s.healingTasks.map(t => t.healerId),
+        ...s.farmingTasks.map(t => t.survivorId),
       ]);
       // Migrate durability on equipment if missing (saves from before this feature)
       const migrateDur = (eq: EquipmentDef | null): EquipmentDef | null => {
@@ -392,8 +651,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...s,
         survivors: s.survivors.map(sv => {
-          const sv2 = (sv.status === 'recycling' || sv.status === 'training' || sv.status === 'crafting') && !busyIds.has(sv.id)
-            ? { ...sv, status: 'available' as const, recycleTaskId: undefined, trainingTaskId: undefined, craftTaskId: undefined }
+          const sv2 = (sv.status === 'recycling' || sv.status === 'training' || sv.status === 'crafting' || sv.status === 'healing' || sv.status === 'farming') && !busyIds.has(sv.id)
+            ? { ...sv, status: 'available' as const, recycleTaskId: undefined, trainingTaskId: undefined, craftTaskId: undefined, healingTaskId: undefined, farmingTaskId: undefined }
             : sv;
           return {
             ...sv2,
@@ -548,7 +807,38 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ?? (TILE_BY_ID.has(exp.zoneId) ? synthZoneDef(TILE_BY_ID.get(exp.zoneId)!) : null);
       if (!zone) return state;
 
-      const results = generateExpeditionResults(exp, expSurvivors, state, zone);
+      let results = generateExpeditionResults(exp, expSurvivors, state, zone);
+
+      // ── Apply expedition event effects ─────────────────────────────────────
+      let newFactionReputation = { ...(state.factionReputation ?? {}) };
+      let newDiscoveredFactions = [...(state.discoveredFactions ?? [])];
+      const eventExtraLogs: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[] = [];
+      let eventFoodCost = 0;
+      let wreckVehicleMarker: string | null = null;
+      let strangerHelpedBoostRecruit = false;
+
+      if (exp.pendingEvent && exp.resolvedEventChoice !== undefined) {
+        const { results: modifiedResults, extraDamage, factionRepDelta, extraLogs, strangerHelped, vehicleWreckInspected, foodCost } =
+          applyEventEffects(exp.pendingEvent, exp.resolvedEventChoice, results, expSurvivors);
+        results = modifiedResults;
+        for (const [sid, dmg] of Object.entries(extraDamage)) {
+          results.survivorDamage[sid] = (results.survivorDamage[sid] || 0) + dmg;
+        }
+        if (factionRepDelta) {
+          const fid = factionRepDelta.id;
+          newFactionReputation[fid] = Math.max(-10, Math.min(10, (newFactionReputation[fid] ?? 0) + factionRepDelta.delta));
+          if (!newDiscoveredFactions.includes(fid)) newDiscoveredFactions.push(fid);
+        }
+        eventExtraLogs.push(...extraLogs.map(m => ({ id: uuidv4(), message: m, time: Date.now(), type: 'info' as const })));
+        eventFoodCost = foodCost ?? 0;
+        strangerHelpedBoostRecruit = strangerHelped ?? false;
+        if (vehicleWreckInspected) {
+          // Ajouter un marqueur pour un véhicule aléatoire (excluant les vélos et blindés)
+          const wreckTypes = ['moto', 'compact', 'sedan', 'suv'];
+          wreckVehicleMarker = wreckTypes[Math.floor(Math.random() * wreckTypes.length)];
+        }
+      }
+
       const completedExp = { ...exp, completed: true, results };
       const dangerLevel = zone.dangerLevel;
       const weaponWear  = dangerLevel * 12;
@@ -588,19 +878,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const storageLevel = state.buildings['storage'] || 0;
       const newRes = { ...state.resources };
       for (const [res, amt] of Object.entries(results.resources)) { newRes[res] = (newRes[res] || 0) + amt; }
+      // Appliquer le coût en nourriture lié aux événements (stranger / faction_encounter)
+      if (eventFoodCost > 0) {
+        newRes['food'] = Math.max(0, (newRes['food'] || 0) - eventFoodCost);
+      }
 
       const newLogs = [
         { id: uuidv4(), message: `Expédition vers ${zone.name} terminée !`, time: Date.now(), type: 'success' as const },
         ...deadNames.map(n => ({ id: uuidv4(), message: `${n} a été tué(e) lors de l'expédition.`, time: Date.now(), type: 'danger' as const })),
         ...brokenNames.map(n => ({ id: uuidv4(), message: `${n} a été détruit(e) lors de l'expédition.`, time: Date.now(), type: 'warning' as const })),
+        ...eventExtraLogs,
         ...state.gameLog.slice(0, 49),
       ];
 
-      // Recrutement — 1 chance sur 10 si de la place est disponible dans le camp
+      // Recrutement — 1 chance sur 10 (ou 25% si étranger aidé) si de la place est disponible
       const barracksLevel2 = state.buildings['barracks'] || 0;
       const newPendingRecruits = [...(state.pendingRecruits || [])];
       let finalCompletedExp = completedExp;
-      if (newSurvivors.length < getMaxSurvivors(barracksLevel2) && Math.random() < 0.1) {
+      const recruitChance = strangerHelpedBoostRecruit ? 0.25 : 0.1;
+      if (newSurvivors.length < getMaxSurvivors(barracksLevel2) && Math.random() < recruitChance) {
         const candidate = generateSurvivor();
         const recruitEntry = { id: uuidv4(), survivor: candidate, expiresAt: Date.now() + 3_600_000 };
         newPendingRecruits.push(recruitEntry);
@@ -639,6 +935,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               : finalCompletedExp.results,
           };
         }
+      }
+
+      // Marqueur véhicule issu de l'événement vehicle_wreck (choix "Inspecter")
+      if (wreckVehicleMarker) {
+        newVehicleMarkers.push({ id: uuidv4(), tileId: exp.zoneId, vehicleTypeId: wreckVehicleMarker, discoveredAt: Date.now() });
       }
 
       // Véhicules trouvés en exploration normale :
@@ -683,6 +984,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         discoveredTiles: newDiscoveredTiles,
         garageVehicles: newGarageVehicles,
         vehicleMarkers: newVehicleMarkers,
+        factionReputation: newFactionReputation,
+        discoveredFactions: newDiscoveredFactions,
         gameLog: newLogs,
       };
     }
@@ -1020,30 +1323,236 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameLog: [{ id: uuidv4(), message: `${recruit.survivor.name} a été refusé et a quitté les environs.`, time: Date.now(), type: 'warning' }, ...state.gameLog.slice(0, 49)],
       };
     }
+    case 'RESOLVE_EXPEDITION_EVENT': {
+      const exp = state.expeditions.find(e => e.id === action.expeditionId);
+      if (!exp || !exp.pendingEvent || exp.resolvedEventChoice !== undefined) return state;
+      const choiceLabel = exp.pendingEvent.options[action.choiceIndex].label;
+      return {
+        ...state,
+        expeditions: state.expeditions.map(e =>
+          e.id === action.expeditionId
+            ? { ...e, resolvedEventChoice: action.choiceIndex }
+            : e
+        ),
+        gameLog: [{
+          id: uuidv4(),
+          message: `Décision prise : "${choiceLabel}" — l'équipe continue sa mission.`,
+          time: Date.now(),
+          type: 'info',
+        }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'BAN_SURVIVOR': {
+      const survivor = state.survivors.find(s => s.id === action.survivorId);
+      if (!survivor) return state;
+      const returnedItems = Object.values(survivor.equipment).filter(Boolean) as import('@/data/gameData').EquipmentDef[];
+      return {
+        ...state,
+        survivors: state.survivors.filter(s => s.id !== action.survivorId),
+        inventory: [...state.inventory, ...returnedItems],
+        gameLog: [{ id: uuidv4(), message: `${survivor.name} a été banni(e) du camp.`, time: Date.now(), type: 'warning' as const }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'START_HEALING': {
+      const healer = state.survivors.find(s => s.id === action.healerId);
+      const target = state.survivors.find(s => s.id === action.targetId);
+      if (!healer || healer.status !== 'available') return state;
+      if (!target || target.status !== 'injured') return state;
+      if ((state.buildings['infirmary'] || 0) < 1) return state;
+      const hpMissing = target.maxHealth - target.health;
+      if (hpMissing <= 0) return state;
+      const medicineCost = Math.ceil(hpMissing * HEALING_MEDICINE_FACTOR);
+      if ((state.resources['medicine'] || 0) < medicineCost) return state;
+      const healerMedical = Math.max(1, healer.skills.medical);
+      const duration = Math.ceil(hpMissing / (healerMedical * 3)) * 60;
+      const taskId = uuidv4();
+      const task: HealingTask = { id: taskId, healerId: healer.id, targetId: target.id, startTime: Date.now(), duration, hpToRestore: hpMissing, medicineCost };
+      return {
+        ...state,
+        resources: { ...state.resources, medicine: state.resources['medicine'] - medicineCost },
+        healingTasks: [...state.healingTasks, task],
+        survivors: state.survivors.map(s => {
+          if (s.id === healer.id) return { ...s, status: 'healing' as const, healingTaskId: taskId };
+          return s;
+        }),
+        gameLog: [{ id: uuidv4(), message: `${healer.name} soigne activement ${target.name} (${hpMissing} PV, ${duration / 60} min).`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'CANCEL_HEALING': {
+      const task = state.healingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      return {
+        ...state,
+        resources: { ...state.resources, medicine: (state.resources['medicine'] || 0) + task.medicineCost },
+        healingTasks: state.healingTasks.filter(t => t.id !== action.taskId),
+        survivors: state.survivors.map(s => {
+          if (s.id === task.healerId) return { ...s, status: 'available' as const, healingTaskId: undefined };
+          return s;
+        }),
+        gameLog: [{ id: uuidv4(), message: `Soin actif annulé — ${task.medicineCost} médicament(s) remboursé(s).`, time: Date.now(), type: 'warning' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'COMPLETE_HEALING': {
+      const task = state.healingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const healer = state.survivors.find(s => s.id === task.healerId);
+      const target = state.survivors.find(s => s.id === task.targetId);
+      return {
+        ...state,
+        healingTasks: state.healingTasks.filter(t => t.id !== action.taskId),
+        survivors: state.survivors.map(s => {
+          if (s.id === task.healerId) return { ...s, status: 'available' as const, healingTaskId: undefined };
+          if (s.id === task.targetId) return { ...s, health: s.maxHealth, status: 'available' as const };
+          return s;
+        }),
+        gameLog: [{ id: uuidv4(), message: `${healer?.name ?? 'Soignant'} a guéri ${target?.name ?? 'la cible'} complètement !`, time: Date.now(), type: 'success' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'START_FARMING': {
+      const survivor = state.survivors.find(s => s.id === action.survivorId);
+      if (!survivor || survivor.status !== 'available') return state;
+      if ((state.buildings['farm'] || 0) < 1) return state;
+      if (state.farmingTasks.length >= 1) return state;
+      const taskId = uuidv4();
+      const task: FarmingTask = { id: taskId, survivorId: survivor.id, startTime: Date.now() };
+      return {
+        ...state,
+        farmingTasks: [...state.farmingTasks, task],
+        survivors: state.survivors.map(s => s.id === survivor.id ? { ...s, status: 'farming' as const, farmingTaskId: taskId } : s),
+        gameLog: [{ id: uuidv4(), message: `${survivor.name} affecté(e) à la culture manuelle (+${FARM_BONUS_PER_FARMER} nourrit./min).`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+    case 'CANCEL_FARMING': {
+      const task = state.farmingTasks.find(t => t.id === action.taskId);
+      if (!task) return state;
+      const survivor = state.survivors.find(s => s.id === task.survivorId);
+      return {
+        ...state,
+        farmingTasks: state.farmingTasks.filter(t => t.id !== action.taskId),
+        survivors: state.survivors.map(s => s.id === task.survivorId ? { ...s, status: 'available' as const, farmingTaskId: undefined } : s),
+        gameLog: [{ id: uuidv4(), message: `${survivor?.name ?? 'Survivant'} a arrêté la culture manuelle.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+      };
+    }
+
     case 'TICK': {
       const now = Date.now();
+      const tickLogs: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[] = [];
+
+      // ── Infirmerie : soins passifs ─────────────────────────────────────────
       const infirmaryLevel = state.buildings['infirmary'] || 0;
       const healRates = [0, 0.1, 0.25, 0.4, 0.6, 0.8];
       const healRate = healRates[infirmaryLevel] || 0;
-      const newSurvivors = state.survivors.map(s => {
+      let newSurvivors = state.survivors.map(s => {
         let sv = s;
-        // Resting → available
         if (sv.status === 'resting' && sv.restingUntil && now >= sv.restingUntil) {
           sv = { ...sv, status: 'available' as const, restingUntil: undefined };
         }
-        // Infirmary healing
         if (healRate > 0 && sv.status !== 'expedition' && sv.health < sv.maxHealth) {
           const healed = Math.min(sv.maxHealth, sv.health + healRate);
           sv = { ...sv, health: healed, status: (healed >= 50 && sv.status === 'injured' ? 'available' : sv.status) as Survivor['status'] };
         }
         return sv;
       });
-      const changed = newSurvivors.some((s, i) => s !== state.survivors[i]);
+
+      // ── Potager : production de nourriture + consommation passive ──────────
+      const farmLevel = state.buildings['farm'] || 0;
+      const farmFoodPerTick = FARM_FOOD_PER_MINUTE[farmLevel] / 60; // /sec
+      const farmerBonus = state.farmingTasks.length * (FARM_BONUS_PER_FARMER / 60);
+      const nonExpeditionCount = state.survivors.filter(s => s.status !== 'expedition').length;
+      const foodConsumedPerTick = nonExpeditionCount * (FOOD_PER_SURVIVOR_PER_HOUR / 3600);
+      const netFoodPerTick = farmFoodPerTick + farmerBonus - foodConsumedPerTick;
+      let newFoodAccum = (state.foodAccum ?? 0) + netFoodPerTick;
+      let newResources = { ...state.resources };
+
+      if (Math.abs(newFoodAccum) >= 1) {
+        const delta = newFoodAccum > 0 ? Math.floor(newFoodAccum) : Math.ceil(newFoodAccum);
+        newFoodAccum -= delta;
+        if (delta > 0) {
+          const storLvl = state.buildings['storage'] || 0;
+          newResources['food'] = Math.min(getStorageCapacity(storLvl), (newResources['food'] || 0) + delta);
+        } else {
+          const taken = Math.min(newResources['food'] || 0, -delta);
+          newResources['food'] = Math.max(0, (newResources['food'] || 0) - taken);
+          // Si manque de nourriture : les survivants non en expédition perdent 1 HP/tick
+          if (taken < -delta) {
+            newSurvivors = newSurvivors.map(s => {
+              if (s.status === 'expedition') return s;
+              const newHp = Math.max(1, s.health - 1);
+              return { ...s, health: newHp, status: (newHp < 50 && s.status !== 'injured' ? 'injured' : s.status) as Survivor['status'] };
+            });
+          }
+        }
+      }
+
+      // ── Raids sur la base ──────────────────────────────────────────────────
+      let newLastRaidAt = state.lastRaidAt;
+      const raidCooldownOk = !state.lastRaidAt || (now - state.lastRaidAt > RAID_COOLDOWN_MS);
+      if (raidCooldownOk && Math.random() < RAID_CHANCE_PER_TICK) {
+        newLastRaidAt = now;
+        const watchtowerLvl = state.buildings['watchtower'] || 0;
+        const dmgReduction = watchtowerLvl * 0.08;
+
+        if (Math.random() < 0.5) {
+          // Raid sur les ressources
+          const raidableRes = ['scrap', 'food', 'materials'].filter(r => (newResources[r] || 0) > 0);
+          if (raidableRes.length > 0) {
+            const target = raidableRes[Math.floor(Math.random() * raidableRes.length)];
+            const basePercent = randomInt(5, 15) / 100;
+            const actualPercent = basePercent * (1 - dmgReduction);
+            const loss = Math.max(1, Math.floor((newResources[target] || 0) * actualPercent));
+            newResources[target] = Math.max(0, (newResources[target] || 0) - loss);
+            const resNames: Record<string, string> = { scrap: 'ferraille', food: 'nourriture', materials: 'matériaux' };
+            tickLogs.push({ id: uuidv4(), message: `Raid sur la base ! ${loss} ${resNames[target] ?? target} pillé(s).`, time: now, type: 'danger' });
+          }
+        } else {
+          // Raid sur un survivant disponible
+          const targets = newSurvivors.filter(s => s.status === 'available' || s.status === 'resting');
+          if (targets.length > 0) {
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const baseDmg = randomInt(10, 25);
+            const actualDmg = Math.max(1, Math.floor(baseDmg * (1 - dmgReduction)));
+            newSurvivors = newSurvivors.map(s => {
+              if (s.id !== target.id) return s;
+              const newHp = Math.max(1, s.health - actualDmg);
+              return { ...s, health: newHp, status: (newHp < 50 ? 'injured' : s.status) as Survivor['status'] };
+            });
+            tickLogs.push({ id: uuidv4(), message: `Raid ! ${target.name} a été attaqué(e) et perd ${actualDmg} PV.`, time: now, type: 'danger' });
+          }
+        }
+      }
+
+      // ── Événements d'expédition ────────────────────────────────────────────
+      const newExpeditions = state.expeditions.map(exp => {
+        if (exp.completed || exp.eventTriggered) return exp;
+        const elapsed = now - exp.startTime;
+        const progress = elapsed / (exp.duration * 1000);
+        if (progress < 0.4) return exp;
+        // Marquer comme testé, puis éventuellement générer un événement
+        const zone = ZONES.find(z => z.id === exp.zoneId)
+          ?? (TILE_BY_ID.has(exp.zoneId) ? synthZoneDef(TILE_BY_ID.get(exp.zoneId)!) : null);
+        if (zone && Math.random() < 0.15) {
+          const event = generateExpeditionEvent(exp, zone);
+          return { ...exp, eventTriggered: true, pendingEvent: event };
+        }
+        return { ...exp, eventTriggered: true };
+      });
+      const expChanged = newExpeditions.some((e, i) => e !== state.expeditions[i]);
+
+      // ── Recrues expirées ───────────────────────────────────────────────────
       const freshRecruits = (state.pendingRecruits || []).filter(r => r.expiresAt > now);
       const recruitsChanged = freshRecruits.length !== (state.pendingRecruits || []).length;
-      return (changed || recruitsChanged)
-        ? { ...state, survivors: newSurvivors, pendingRecruits: freshRecruits }
-        : state;
+
+      // ── Assembler le nouvel état ───────────────────────────────────────────
+      return {
+        ...state,
+        survivors: newSurvivors,
+        resources: newResources,
+        expeditions: expChanged ? newExpeditions : state.expeditions,
+        pendingRecruits: freshRecruits,
+        lastRaidAt: newLastRaidAt,
+        foodAccum: newFoodAccum,
+        gameLog: tickLogs.length > 0 ? [...tickLogs, ...state.gameLog.slice(0, 49)] : state.gameLog,
+      };
     }
     default: return state;
   }
@@ -1054,11 +1563,12 @@ function createInitialState(): GameState {
   for (let i = 0; i < 4; i++) survivors.push(generateSurvivor());
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
-    buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [], craftingTasks: [],
+    buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [], craftingTasks: [], healingTasks: [], farmingTasks: [],
     traderCampDiscovered: false, traderCamp: null, discoveredZones: [], discoveredTiles: [], garageVehicles: [], vehicleMarkers: [],
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
     pendingResults: null, pendingRecruits: [], initialized: false,
+    factionReputation: {}, discoveredFactions: [], lastRaidAt: undefined, foodAccum: 0,
   };
 }
 
@@ -1087,6 +1597,12 @@ interface GameContextType {
   removeVehicle: (vehicleId: string) => void;
   acceptRecruit: (recruitId: string) => void;
   declineRecruit: (recruitId: string) => void;
+  resolveExpeditionEvent: (expeditionId: string, choiceIndex: 0 | 1) => void;
+  banSurvivor: (survivorId: string) => void;
+  startHealing:  (healerId: string, targetId: string) => void;
+  cancelHealing: (taskId: string) => void;
+  startFarming:  (survivorId: string) => void;
+  cancelFarming: (taskId: string) => void;
   // Auth
   user: User | null;
   authLoading: boolean;
@@ -1302,6 +1818,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const removeVehicle  = useCallback((vehicleId: string) => { dispatch({ type: 'REMOVE_VEHICLE', vehicleId }); }, []);
   const acceptRecruit  = useCallback((recruitId: string) => { dispatch({ type: 'ACCEPT_RECRUIT', recruitId }); }, []);
   const declineRecruit = useCallback((recruitId: string) => { dispatch({ type: 'DECLINE_RECRUIT', recruitId }); }, []);
+  const resolveExpeditionEvent = useCallback((expeditionId: string, choiceIndex: 0 | 1) => { dispatch({ type: 'RESOLVE_EXPEDITION_EVENT', expeditionId, choiceIndex }); }, []);
+  const banSurvivor    = useCallback((survivorId: string) => { dispatch({ type: 'BAN_SURVIVOR', survivorId }); }, []);
+  const startHealing  = useCallback((healerId: string, targetId: string) => { dispatch({ type: 'START_HEALING', healerId, targetId }); }, []);
+  const cancelHealing = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_HEALING', taskId }); }, []);
+  const startFarming  = useCallback((survivorId: string) => { dispatch({ type: 'START_FARMING', survivorId }); }, []);
+  const cancelFarming = useCallback((taskId: string) => { dispatch({ type: 'CANCEL_FARMING', taskId }); }, []);
+
+  // Check healing task completion every second
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const task of stateRef.current.healingTasks) {
+        if (now >= task.startTime + task.duration * 1000) {
+          dispatch({ type: 'COMPLETE_HEALING', taskId: task.id });
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <GameContext.Provider value={{
@@ -1310,7 +1845,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       startCraft, cancelCraft,
       viewResults, collectResults, resetGame,
       startRecycle, cancelRecycle, startTraining, cancelTraining, executeTrade, repairItem,
-      addVehicle, removeVehicle, acceptRecruit, declineRecruit,
+      addVehicle, removeVehicle, acceptRecruit, declineRecruit, resolveExpeditionEvent, banSurvivor,
+      startHealing, cancelHealing, startFarming, cancelFarming,
       user, authLoading, signIn, signUp, signOut,
       cloudSave, cloudLoad, cloudSaving, lastCloudSave,
     }}>
