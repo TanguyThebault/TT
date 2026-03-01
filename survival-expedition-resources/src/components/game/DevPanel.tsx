@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, FlaskConical } from 'lucide-react';
+import { ChevronDown, ChevronUp, FlaskConical, Car } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
-import { RESOURCES } from '@/data/gameData';
+import { RESOURCES, VEHICLE_DEFS } from '@/data/gameData';
 
 // ── Dev account identifier (no password stored — auth is handled by Supabase) ─
 export const DEV_EMAIL = 'tanguy.thebault.45@orange.fr';
@@ -9,7 +9,7 @@ export const DEV_EMAIL = 'tanguy.thebault.45@orange.fr';
 const QUICK_VALUES = [0, 10, 50, 100, 500, 999];
 
 const DevPanel: React.FC = () => {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, addVehicle } = useGame();
   const [open, setOpen] = useState(false);
 
   const setResource = (resourceId: string, value: number) => {
@@ -135,6 +135,29 @@ const DevPanel: React.FC = () => {
               </div>
             );
           })}
+
+          {/* Vehicle section */}
+          <div className="border-t pt-2 space-y-1.5" style={{ borderColor: 'rgba(168,85,247,0.15)' }}>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em]" style={{ color: 'rgba(168,85,247,0.5)' }}>
+              <Car className="w-3 h-3" />
+              <span>░ Véhicules (DEV) ░</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {VEHICLE_DEFS.map(vDef => (
+                <button
+                  key={vDef.id}
+                  onClick={() => addVehicle(vDef.id)}
+                  className="text-[9px] px-1.5 py-1 rounded border uppercase tracking-wider transition-colors text-left truncate"
+                  style={{ borderColor: 'rgba(168,85,247,0.3)', color: '#a855f7' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  title={`Ajouter ${vDef.name} (${vDef.spaces}p)`}
+                >
+                  + {vDef.name}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Footer */}
           <div

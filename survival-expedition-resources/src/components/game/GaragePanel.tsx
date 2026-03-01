@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Car, Bike, Truck, Shield, MapPin, Gauge, Volume2, Swords } from 'lucide-react';
+import { X, Car, Bike, Truck, Shield, MapPin, Gauge, Volume2, Swords, Search } from 'lucide-react';
 import { useGame, type GarageVehicle } from '@/contexts/GameContext';
 import { VEHICLE_DEFS, ZONES, getGarageCapacity } from '@/data/gameData';
 
@@ -104,7 +104,7 @@ function buildCellArray(vehicles: GarageVehicle[], capacity: number): (GarageVeh
 // ── Main component ────────────────────────────────────────────────────────────
 
 const GaragePanel: React.FC = () => {
-  const { state, addVehicle, removeVehicle } = useGame();
+  const { state, removeVehicle } = useGame();
   const garageLevel  = state.buildings['garage'] || 0;
   const capacity     = getGarageCapacity(garageLevel);
   const vehicles     = state.garageVehicles;
@@ -326,7 +326,7 @@ const GaragePanel: React.FC = () => {
 
         {vehicles.length > 0 && (
           <p className="text-[10px] font-mono text-zinc-700 text-center mt-2">
-            Cliquez sur un véhicule pour le retirer du garage
+            Cliquez sur un véhicule pour le retirer du garage — les véhicules en mission ne peuvent pas être retirés
           </p>
         )}
       </div>
@@ -414,99 +414,29 @@ const GaragePanel: React.FC = () => {
         </div>
       )}
 
-      {/* ── Add vehicle ───────────────────────────────────────────────────── */}
+      {/* ── Comment acquérir des véhicules ───────────────────────────────── */}
       <div
         className="wl-corner-lg border p-4"
-        style={{ borderColor: 'rgba(80,55,15,0.30)', backgroundColor: 'rgba(8,6,2,0.85)' }}
+        style={{ borderColor: 'rgba(80,55,15,0.20)', backgroundColor: 'rgba(6,5,2,0.80)' }}
       >
-        <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-zinc-600 mb-3 flex items-center gap-2">
-          <div className="flex-1 h-px bg-zinc-800/60" />
-          <span>Ajouter un véhicule</span>
-          <div className="flex-1 h-px bg-zinc-800/60" />
+        <div className="flex items-start gap-3">
+          <Search className="w-4 h-4 text-amber-700/50 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-[11px] font-mono text-amber-700/70 font-bold uppercase tracking-wider">
+              Acquisition de véhicules
+            </p>
+            <p className="text-[10px] font-mono text-zinc-600 leading-relaxed">
+              Les véhicules ne peuvent pas être ajoutés manuellement. Envoyez des équipes en
+              <span className="text-amber-600/80 font-bold"> Expédition</span> pour en découvrir.
+            </p>
+            <p className="text-[10px] font-mono text-zinc-700 leading-relaxed">
+              Les vélos trouvés reviennent directement au camp. Les autres véhicules
+              (motos, voitures, 4×4…) nécessitent une
+              <span className="text-amber-700/60 font-bold"> expédition de récupération</span> — un marqueur
+              est posé sur la carte et des ressources de réparation seront consommées au lancement.
+            </p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {VEHICLE_DEFS.map(vDef => {
-            const style  = getStyle(vDef.id);
-            const canAdd = freeSpaces >= vDef.spaces;
-            return (
-              <button
-                key={vDef.id}
-                onClick={() => canAdd && addVehicle(vDef.id)}
-                disabled={!canAdd}
-                className="flex items-center gap-3 px-3 py-2.5 rounded border text-left transition-all"
-                style={{
-                  backgroundColor: canAdd ? `${style.accent}10` : 'rgba(20,18,12,0.6)',
-                  borderColor:     canAdd ? `${style.accent}40` : 'rgba(50,45,30,0.3)',
-                  cursor:          canAdd ? 'pointer' : 'not-allowed',
-                  opacity:         canAdd ? 1 : 0.45,
-                }}
-                onMouseEnter={e => canAdd && ((e.currentTarget as HTMLElement).style.backgroundColor = `${style.accent}20`)}
-                onMouseLeave={e => canAdd && ((e.currentTarget as HTMLElement).style.backgroundColor = `${style.accent}10`)}
-              >
-                {/* SVG mini-preview */}
-                <div style={{ width: 20, height: 30, flexShrink: 0, opacity: canAdd ? 0.9 : 0.4 }}>
-                  <VehicleSVG typeId={vDef.id} color={style.accent} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="text-xs font-mono font-bold leading-tight"
-                    style={{ color: canAdd ? style.accent : 'rgba(100,90,70,0.6)' }}
-                  >
-                    {vDef.name}
-                  </div>
-                  <div className="text-[10px] font-mono text-zinc-600 leading-tight mt-0.5">
-                    {vDef.description}
-                  </div>
-                  {/* Noise dots */}
-                  <div className="flex items-center gap-1 mt-1">
-                    <Volume2 className="w-2.5 h-2.5" style={{ color: canAdd ? 'rgba(249,115,22,0.6)' : 'rgba(60,50,40,0.4)' }}/>
-                    <span className="flex gap-0.5">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <span key={i} className="w-1.5 h-1.5 rounded-sm inline-block"
-                          style={{
-                            backgroundColor: i < vDef.noise
-                              ? (canAdd ? '#f97316' : 'rgba(120,60,20,0.4)')
-                              : 'rgba(40,40,40,0.7)',
-                          }}
-                        />
-                      ))}
-                    </span>
-                    {vDef.combat > 0 && (
-                      <span className="flex items-center gap-0.5 ml-1 text-[9px] font-mono"
-                        style={{ color: canAdd ? '#f87171' : 'rgba(100,50,50,0.5)' }}>
-                        <Swords className="w-2 h-2"/> +{vDef.combat}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <div
-                    className="text-xs font-mono font-bold"
-                    style={{ color: canAdd ? style.accent : 'rgba(80,70,50,0.5)' }}
-                  >
-                    {vDef.spaces}p
-                  </div>
-                  <div className="text-[9px] font-mono" style={{ color: canAdd ? style.accent + 'aa' : 'rgba(60,55,40,0.5)' }}>
-                    -{Math.round(vDef.speed * 100)}%
-                  </div>
-                  {!canAdd && (
-                    <div className="text-[9px] font-mono text-red-900/60 uppercase tracking-wider">
-                      Plein
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {freeSpaces === 0 && (
-          <p className="text-[10px] font-mono text-zinc-700 text-center mt-3">
-            Garage complet — améliorez le Garage dans l'onglet Base pour gagner 4 places supplémentaires
-          </p>
-        )}
       </div>
     </div>
   );

@@ -237,20 +237,63 @@ const ExpeditionResults: React.FC = () => {
             </div>
           )}
 
-          {/* Vehicles found */}
+          {/* Vehicle retrieved (retrieval expedition) */}
+          {results.retrievedVehicleTypeId && (() => {
+            const def = VEHICLE_DEFS.find(d => d.id === results.retrievedVehicleTypeId);
+            return def ? (
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-bold text-zinc-300 font-mono flex items-center gap-1.5">
+                  <Car className="w-4 h-4 text-green-400" /> Véhicule Récupéré
+                </h3>
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-green-700/40 bg-green-900/10">
+                  <Car className="w-3 h-3 text-green-400" />
+                  <span className="text-[11px] font-mono text-green-300 font-bold">{def.name}</span>
+                  <span className="text-[10px] font-mono text-zinc-500">réparé et ajouté au garage</span>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Bikes found directly */}
           {(results.vehiclesFound ?? []).length > 0 && (
             <div className="space-y-1.5">
               <h3 className="text-sm font-bold text-zinc-300 font-mono flex items-center gap-1.5">
-                <Car className="w-4 h-4 text-amber-500" /> Véhicules Récupérés
+                <Car className="w-4 h-4 text-sky-400" /> Véhicule Ramené
               </h3>
               <div className="space-y-1">
                 {results.vehiclesFound!.map((typeId, i) => {
                   const def = VEHICLE_DEFS.find(d => d.id === typeId);
                   return def ? (
-                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded border border-amber-700/30">
-                      <Car className="w-3 h-3 text-amber-500" />
+                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded border border-sky-700/30 bg-sky-900/10">
+                      <Car className="w-3 h-3 text-sky-400" />
                       <span className="text-[11px] font-mono text-zinc-300">{def.name}</span>
-                      <span className="text-[10px] font-mono text-zinc-600">{def.description}</span>
+                      <span className="text-[10px] font-mono text-zinc-600">ajouté directement au garage</span>
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Vehicle markers created */}
+          {(results.vehicleMarkersCreated ?? []).length > 0 && (
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-zinc-300 font-mono flex items-center gap-1.5">
+                <Car className="w-4 h-4 text-amber-500" /> Véhicule(s) Repéré(s)
+              </h3>
+              <div className="space-y-1">
+                {results.vehicleMarkersCreated!.map((typeId, i) => {
+                  const def = VEHICLE_DEFS.find(d => d.id === typeId);
+                  return def ? (
+                    <div key={i} className="flex items-start gap-2 px-2 py-2 rounded border border-amber-700/30 bg-amber-900/10">
+                      <Car className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-[11px] font-mono text-zinc-300 font-bold">{def.name}</span>
+                        <p className="text-[10px] font-mono text-amber-700/70 mt-0.5">
+                          Marqueur posé sur la carte — organisez une expédition de récupération
+                          {def.repairCost && ` (${def.repairCost.scrap} ferraille · ${def.repairCost.materials} mat. · ${def.repairCost.fuel} carburant)`}
+                        </p>
+                      </div>
                     </div>
                   ) : null;
                 })}

@@ -677,16 +677,19 @@ export interface VehicleDef {
   /** Bonus de combat ajouté à l'équipe lors des affrontements. */
   combat: number;
   description: string;
+  /** Coût de réparation pour récupérer le véhicule (expédition de récupération).
+   *  Absent pour les vélos (récupérés directement). */
+  repairCost?: { scrap: number; materials: number; fuel: number };
 }
 
 export const VEHICLE_DEFS: VehicleDef[] = [
   //                                              speed  noise  combat
   { id: 'bike',        name: 'Vélo',       spaces: 1,  speed: 0.12, noise: 0, combat:  0, description: 'Silencieux, passe partout, lent'          },
-  { id: 'moto',        name: 'Moto',       spaces: 2,  speed: 0.45, noise: 3, combat:  0, description: 'Rapide, bon franchissement, bruyant'        },
-  { id: 'compact',     name: 'Citadine',   spaces: 4,  speed: 0.08, noise: 1, combat:  0, description: 'Discret, mauvais hors-route'                },
-  { id: 'sedan',       name: 'Berline',    spaces: 6,  speed: 0.05, noise: 1, combat:  0, description: 'Spacieuse, très mauvais franchissement'     },
-  { id: 'suv',         name: '4×4',        spaces: 8,  speed: 0.30, noise: 3, combat:  0, description: 'Rapide, excellent tout-terrain, bruyant'    },
-  { id: 'armored_suv', name: '4×4 Blindé', spaces: 10, speed: 0.20, noise: 4, combat: 15, description: 'Blindé, armé, très bruyant'                 },
+  { id: 'moto',        name: 'Moto',       spaces: 2,  speed: 0.45, noise: 3, combat:  0, description: 'Rapide, bon franchissement, bruyant',        repairCost: { scrap: 10, materials: 5,  fuel: 5  } },
+  { id: 'compact',     name: 'Citadine',   spaces: 4,  speed: 0.08, noise: 1, combat:  0, description: 'Discret, mauvais hors-route',                repairCost: { scrap: 15, materials: 10, fuel: 10 } },
+  { id: 'sedan',       name: 'Berline',    spaces: 6,  speed: 0.05, noise: 1, combat:  0, description: 'Spacieuse, très mauvais franchissement',     repairCost: { scrap: 20, materials: 15, fuel: 10 } },
+  { id: 'suv',         name: '4×4',        spaces: 8,  speed: 0.30, noise: 3, combat:  0, description: 'Rapide, excellent tout-terrain, bruyant',    repairCost: { scrap: 30, materials: 20, fuel: 15 } },
+  { id: 'armored_suv', name: '4×4 Blindé', spaces: 10, speed: 0.20, noise: 4, combat: 15, description: 'Blindé, armé, très bruyant',                 repairCost: { scrap: 50, materials: 30, fuel: 25 } },
 ];
 
 /** Capacité du garage en nombre de places selon le niveau (4 places par niveau). */

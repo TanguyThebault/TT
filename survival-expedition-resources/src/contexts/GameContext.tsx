@@ -69,6 +69,13 @@ export interface GarageVehicle {
   spaces: number;
 }
 
+export interface VehicleMarker {
+  id: string;
+  tileId: string;
+  vehicleTypeId: string;
+  discoveredAt: number;
+}
+
 export interface PendingRecruit {
   id: string;
   survivor: Survivor;
@@ -101,6 +108,7 @@ export interface Expedition {
   duration: number;
   completed: boolean;
   results?: ExpeditionResult;
+  retrievalMarkerId?: string; // si défini, c'est une expédition de récupération de véhicule
 }
 
 export interface ExpeditionResult {
@@ -109,7 +117,9 @@ export interface ExpeditionResult {
   events: string[];
   survivorDamage: Record<string, number>;
   recruitId?: string; // ID du PendingRecruit généré lors de cette expédition
-  vehiclesFound?: string[]; // vehicleTypeIds (ex: 'bike', 'suv')
+  vehiclesFound?: string[]; // vehicleTypeIds ajoutés directement au garage (vélos uniquement)
+  vehicleMarkersCreated?: string[]; // vehicleTypeIds pour lesquels un marqueur a été posé
+  retrievedVehicleTypeId?: string; // vehicleTypeId récupéré lors d'une expédition de récupération
 }
 
 export interface GameState {
@@ -126,6 +136,7 @@ export interface GameState {
   discoveredZones: string[];
   discoveredTiles: string[];
   garageVehicles: GarageVehicle[];
+  vehicleMarkers: VehicleMarker[];
   gameLog: { id: string; message: string; time: number; type: 'info' | 'success' | 'danger' | 'warning' }[];
   pendingResults: Expedition | null;
   pendingRecruits: PendingRecruit[];
@@ -135,7 +146,7 @@ export interface GameState {
 type GameAction =
   | { type: 'INIT_GAME'; state: GameState }
   | { type: 'UPGRADE_BUILDING'; buildingId: string }
-  | { type: 'LAUNCH_EXPEDITION'; zoneId: string; survivorIds: string[]; vehicleIds: string[] }
+  | { type: 'LAUNCH_EXPEDITION'; zoneId: string; survivorIds: string[]; vehicleIds: string[]; retrievalMarkerId?: string }
   | { type: 'COMPLETE_EXPEDITION'; expeditionId: string }
   | { type: 'VIEW_RESULTS'; expedition: Expedition | null }
   | { type: 'COLLECT_RESULTS' }
@@ -276,7 +287,11 @@ function generateExpeditionResults(expedition: Expedition, survivors: Survivor[]
           if (eq) equipment.push({ ...eq });
         } else if (loot.type === 'vehicle') {
           vehiclesFound.push(loot.id);
-          events.push(`L'équipe a trouvé un véhicule : ${loot.name} !`);
+          if (loot.id === 'bike') {
+            events.push(`L'équipe a trouvé un vélo et l'a ramené au camp !`);
+          } else {
+            events.push(`${loot.name} repéré sur place — marqueur posé pour une expédition de récupération.`);
+          }
         }
       }
     }
@@ -350,6 +365,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         discoveredZones:      action.state.discoveredZones      ?? [],
         discoveredTiles:      action.state.discoveredTiles      ?? [],
         garageVehicles:       action.state.garageVehicles       ?? [],
+        vehicleMarkers:       action.state.vehicleMarkers       ?? [],
         pendingRecruits:      action.state.pendingRecruits      ?? [],
         // Migrer les expéditions sauvegardées sans vehicleIds/speedReduction/noise/combat
         expeditions: (action.state.expeditions || []).map(e => ({
@@ -433,7 +449,27 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       const duration  = Math.floor(zone.baseDuration * (1 - speedReduction));
       const foodCost  = Math.max(1, Math.ceil((duration / 60) * action.survivorIds.length));
+      const newRes = { ...state.resources, food: (state.resources['food'] || 0) - foodCost };
       if ((state.resources['food'] || 0) < foodCost) return state;
+
+      // Si expédition de récupération : vérifier et déduire les coûts de réparation
+      let retrievalVehicleName = '';
+      if (action.retrievalMarkerId) {
+        const marker = (state.vehicleMarkers ?? []).find(m => m.id === action.retrievalMarkerId);
+        if (!marker) return state;
+        const vDef = VEHICLE_DEFS.find(d => d.id === marker.vehicleTypeId);
+        const rc = vDef?.repairCost;
+        if (rc) {
+          if ((state.resources['scrap']     || 0) < rc.scrap)     return state;
+          if ((state.resources['materials'] || 0) < rc.materials) return state;
+          if ((state.resources['fuel']      || 0) < rc.fuel)      return state;
+          newRes['scrap']     = (newRes['scrap']     || 0) - rc.scrap;
+          newRes['materials'] = (newRes['materials'] || 0) - rc.materials;
+          newRes['fuel']      = (newRes['fuel']      || 0) - rc.fuel;
+        }
+        retrievalVehicleName = vDef?.name ?? marker.vehicleTypeId;
+      }
+
       const expeditionId = uuidv4();
       const newSurvivors = state.survivors.map(s =>
         action.survivorIds.includes(s.id) ? { ...s, status: 'expedition' as const, expeditionId } : s
@@ -449,13 +485,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         survivorIds: action.survivorIds, vehicleIds: action.vehicleIds,
         speedReduction, vehicleNoise: expMaxNoise, vehicleCombat: expVehicleCombat,
         startTime: Date.now(), duration, completed: false,
+        retrievalMarkerId: action.retrievalMarkerId,
       };
-      const newRes = { ...state.resources, food: (state.resources['food'] || 0) - foodCost };
       const speedMsg = speedReduction > 0 ? ` · -${Math.round(speedReduction * 100)}% durée` : '';
+      const logMsg = action.retrievalMarkerId
+        ? `Expédition de récupération : ${retrievalVehicleName} — ${foodCost} nourriture consommée${speedMsg}.`
+        : `Expédition lancée vers ${zone.name} — ${foodCost} nourriture consommée${speedMsg}.`;
       return {
         ...state, resources: newRes, survivors: newSurvivors,
         expeditions: [...state.expeditions, newExpedition],
-        gameLog: [{ id: uuidv4(), message: `Expédition lancée vers ${zone.name} — ${foodCost} nourriture consommée${speedMsg}.`, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
+        gameLog: [{ id: uuidv4(), message: logMsg, time: Date.now(), type: 'info' }, ...state.gameLog.slice(0, 49)],
       };
     }
     case 'COMPLETE_EXPEDITION': {
@@ -578,20 +617,58 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         });
       }
 
-      // Véhicules trouvés → ajouter au garage si capacité disponible
       const garageCapacity = getGarageCapacity(state.buildings['garage'] || 0);
       const newGarageVehicles = [...state.garageVehicles];
-      const foundVehicleTypeIds = finalCompletedExp.results?.vehiclesFound ?? [];
-      for (const vehicleTypeId of foundVehicleTypeIds) {
-        if (newGarageVehicles.length < garageCapacity) {
-          const vDef = VEHICLE_DEFS.find(d => d.id === vehicleTypeId);
-          newGarageVehicles.push({
-            id: uuidv4(),
-            type: vehicleTypeId,
-            name: vDef?.name ?? vehicleTypeId,
-            spaces: vDef?.spaces ?? 0,
-          });
+      const newVehicleMarkers = [...(state.vehicleMarkers ?? [])];
+
+      // Expédition de récupération : ajouter le véhicule récupéré au garage
+      if (completedExp.retrievalMarkerId) {
+        const markerIdx = newVehicleMarkers.findIndex(m => m.id === completedExp.retrievalMarkerId);
+        if (markerIdx >= 0) {
+          const marker = newVehicleMarkers[markerIdx];
+          const vDef = VEHICLE_DEFS.find(d => d.id === marker.vehicleTypeId);
+          const usedSpaces = newGarageVehicles.reduce((sum, v) => sum + v.spaces, 0);
+          if (vDef && usedSpaces + vDef.spaces <= garageCapacity) {
+            newGarageVehicles.push({ id: uuidv4(), type: vDef.id, name: vDef.name, spaces: vDef.spaces });
+          }
+          newVehicleMarkers.splice(markerIdx, 1);
+          finalCompletedExp = {
+            ...finalCompletedExp,
+            results: finalCompletedExp.results
+              ? { ...finalCompletedExp.results, retrievedVehicleTypeId: marker.vehicleTypeId }
+              : finalCompletedExp.results,
+          };
         }
+      }
+
+      // Véhicules trouvés en exploration normale :
+      // - vélo → ajouté directement au garage
+      // - autres → marqueur posé sur la tuile
+      const foundVehicleTypeIds = finalCompletedExp.results?.vehiclesFound ?? [];
+      const vehicleMarkersCreated: string[] = [];
+      for (const vehicleTypeId of foundVehicleTypeIds) {
+        if (vehicleTypeId === 'bike') {
+          const usedSpaces = newGarageVehicles.reduce((sum, v) => sum + v.spaces, 0);
+          if (usedSpaces + 1 <= garageCapacity) {
+            const vDef = VEHICLE_DEFS.find(d => d.id === 'bike')!;
+            newGarageVehicles.push({ id: uuidv4(), type: 'bike', name: vDef.name, spaces: 1 });
+          }
+        } else {
+          newVehicleMarkers.push({ id: uuidv4(), tileId: exp.zoneId, vehicleTypeId, discoveredAt: Date.now() });
+          vehicleMarkersCreated.push(vehicleTypeId);
+        }
+      }
+
+      // Mettre à jour les résultats pour refléter la séparation vélos / marqueurs
+      if (vehicleMarkersCreated.length > 0 || foundVehicleTypeIds.some(id => id === 'bike')) {
+        finalCompletedExp = {
+          ...finalCompletedExp,
+          results: finalCompletedExp.results ? {
+            ...finalCompletedExp.results,
+            vehiclesFound: foundVehicleTypeIds.filter(id => id === 'bike'),
+            vehicleMarkersCreated,
+          } : finalCompletedExp.results,
+        };
       }
 
       return {
@@ -605,6 +682,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         discoveredZones: newDiscoveredZones,
         discoveredTiles: newDiscoveredTiles,
         garageVehicles: newGarageVehicles,
+        vehicleMarkers: newVehicleMarkers,
         gameLog: newLogs,
       };
     }
@@ -977,7 +1055,7 @@ function createInitialState(): GameState {
   return {
     resources: { food: 30, scrap: 25, medicine: 10, fuel: 5, electronics: 3, materials: 15 },
     buildings: {}, survivors, expeditions: [], recyclingTasks: [], trainingTasks: [], craftingTasks: [],
-    traderCampDiscovered: false, traderCamp: null, discoveredZones: [], discoveredTiles: [], garageVehicles: [],
+    traderCampDiscovered: false, traderCamp: null, discoveredZones: [], discoveredTiles: [], garageVehicles: [], vehicleMarkers: [],
     inventory: [{ ...ALL_EQUIPMENT.find(e => e.id === 'pipe_weapon')! }, { ...ALL_EQUIPMENT.find(e => e.id === 'rags_armor')! }],
     gameLog: [{ id: uuidv4(), message: 'Bienvenue dans votre nouvelle base. La survie commence maintenant.', time: Date.now(), type: 'info' }],
     pendingResults: null, pendingRecruits: [], initialized: false,
@@ -990,7 +1068,7 @@ interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   upgradeBuilding: (buildingId: string) => void;
-  launchExpedition: (zoneId: string, survivorIds: string[], vehicleIds: string[]) => void;
+  launchExpedition: (zoneId: string, survivorIds: string[], vehicleIds: string[], retrievalMarkerId?: string) => void;
   equipItem: (survivorId: string, item: EquipmentDef) => void;
   unequipItem: (survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => void;
   startCraft: (survivorId: string, itemId: string) => void;
@@ -1205,7 +1283,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const upgradeBuilding = useCallback((buildingId: string) => { dispatch({ type: 'UPGRADE_BUILDING', buildingId }); }, []);
-  const launchExpedition = useCallback((zoneId: string, survivorIds: string[], vehicleIds: string[]) => { dispatch({ type: 'LAUNCH_EXPEDITION', zoneId, survivorIds, vehicleIds }); }, []);
+  const launchExpedition = useCallback((zoneId: string, survivorIds: string[], vehicleIds: string[], retrievalMarkerId?: string) => { dispatch({ type: 'LAUNCH_EXPEDITION', zoneId, survivorIds, vehicleIds, retrievalMarkerId }); }, []);
   const equipItem = useCallback((survivorId: string, item: EquipmentDef) => { dispatch({ type: 'EQUIP_ITEM', survivorId, item }); }, []);
   const unequipItem = useCallback((survivorId: string, slot: 'weapon' | 'armor' | 'backpack') => { dispatch({ type: 'UNEQUIP_ITEM', survivorId, slot }); }, []);
   const startCraft  = useCallback((survivorId: string, itemId: string) => { dispatch({ type: 'START_CRAFT', survivorId, itemId }); }, []);

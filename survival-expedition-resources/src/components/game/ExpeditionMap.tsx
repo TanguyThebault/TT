@@ -4,7 +4,7 @@ import { VEHICLE_DEFS, getDangerReduction, getCategoryDef } from '@/data/gameDat
 import { FRANCE_PATH } from '@/data/mapData';
 import { TILE_GRID, TILE_BY_ID, TILE_SIZE, BASE_TILE_ID, getRadioRange, synthZoneDef } from '@/data/tileMap';
 import SurvivorCard from './SurvivorCard';
-import { AlertTriangle, Clock, Rocket, Users, Sword, Search, Shield, Car, AlertCircle, Gauge, Volume2, Swords } from 'lucide-react';
+import { AlertTriangle, Clock, Rocket, Users, Sword, Search, Shield, Car, AlertCircle, Gauge, Volume2, Swords, Wrench } from 'lucide-react';
 
 const DANGER_COLORS = ['', '#4ade80', '#facc15', '#fb923c', '#f87171', '#ef4444'];
 const DANGER_LABELS = ['', 'Faible', 'Modéré', 'Élevé', 'Très Élevé', 'Extrême'];
@@ -30,6 +30,7 @@ const ExpeditionMap: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSurvivors, setSelectedSurvivors] = useState<string[]>([]);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
+  const [retrievalMode, setRetrievalMode] = useState<string | null>(null); // markerId being retrieved
   const [now, setNow] = useState(Date.now());
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const svgRef  = useRef<SVGSVGElement>(null);
@@ -79,7 +80,11 @@ const ExpeditionMap: React.FC = () => {
 
   const handleZoneClick = (tileId: string) => {
     if (dragRef.current.moved) return;
-    setSelectedId(prev => prev === tileId ? null : tileId);
+    setSelectedId(prev => {
+      if (prev === tileId) { setRetrievalMode(null); return null; }
+      setRetrievalMode(null);
+      return tileId;
+    });
   };
 
   const watchtowerLevel = state.buildings['watchtower'] || 0;
@@ -146,10 +151,11 @@ const ExpeditionMap: React.FC = () => {
 
   const handleLaunch = () => {
     if (!selectedId || selectedSurvivors.length === 0 || !hasEnoughFood) return;
-    launchExpedition(selectedId, selectedSurvivors, selectedVehicleIds);
+    launchExpedition(selectedId, selectedSurvivors, selectedVehicleIds, retrievalMode ?? undefined);
     setSelectedId(null);
     setSelectedSurvivors([]);
     setSelectedVehicleIds([]);
+    setRetrievalMode(null);
   };
 
   const toggleVehicle = (vehicleId: string) => {
@@ -288,6 +294,27 @@ const ExpeditionMap: React.FC = () => {
               );
             })}
 
+            {/* Marqueurs de véhicules abandonnés */}
+            {(state.vehicleMarkers ?? []).map(marker => {
+              const tile = TILE_BY_ID.get(marker.tileId);
+              if (!tile) return null;
+              return (
+                <g key={`vm-${marker.id}`} style={{ pointerEvents: 'none' }}>
+                  <rect
+                    x={tile.cx - 3.5} y={tile.cy - 6}
+                    width="7" height="5" rx="1"
+                    fill="#92400e" stroke="#f59e0b" strokeWidth="0.6" opacity="0.9"
+                  />
+                  <text x={tile.cx} y={tile.cy - 2.5}
+                    textAnchor="middle" fill="#fbbf24" fontSize="3.5"
+                    fontFamily="monospace" fontWeight="bold"
+                    style={{ pointerEvents: 'none' }}>
+                    CAR
+                  </text>
+                </g>
+              );
+            })}
+
           </g>{/* ── Fin contenu zoomable ── */}
 
           {/* Overlays fixes */}
@@ -299,6 +326,8 @@ const ExpeditionMap: React.FC = () => {
             <text x="14" y="4" fill="#46465a" fontSize="8" fontFamily="monospace">En mission</text>
             <circle cx="84" cy="0" r="4" fill="#f59e0b"/>
             <text x="93" y="4" fill="#46465a" fontSize="8" fontFamily="monospace">Retour base</text>
+            <rect x="164" y="-4" width="10" height="7" rx="1" fill="#92400e" stroke="#f59e0b" strokeWidth="0.6"/>
+            <text x="182" y="4" fill="#46465a" fontSize="8" fontFamily="monospace">Véhicule</text>
           </g>
 
           <g transform="translate(764,568)" style={{ pointerEvents: 'none' }}>
@@ -331,7 +360,7 @@ const ExpeditionMap: React.FC = () => {
               )}
             </div>
             <button
-              onClick={() => { setSelectedId(null); setSelectedSurvivors([]); setSelectedVehicleIds([]); }}
+              onClick={() => { setSelectedId(null); setSelectedSurvivors([]); setSelectedVehicleIds([]); setRetrievalMode(null); }}
               className="text-zinc-600 hover:text-zinc-300 transition-colors ml-4 shrink-0 text-xs font-mono"
             >✕</button>
           </div>
@@ -368,6 +397,78 @@ const ExpeditionMap: React.FC = () => {
               : <span className="text-zinc-600 italic">Inconnu — envoyez une expédition pour explorer</span>
             }
           </div>
+
+          {/* ── Véhicules abandonnés sur cette tuile ─────────────────────── */}
+          {(() => {
+            const tileMarkers = (state.vehicleMarkers ?? []).filter(m => m.tileId === selectedTile.id);
+            if (tileMarkers.length === 0) return null;
+            return (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-amber-700/70 flex items-center gap-2">
+                  <Car className="w-3 h-3" />
+                  Véhicule{tileMarkers.length > 1 ? 's' : ''} abandonné{tileMarkers.length > 1 ? 's' : ''} sur cette zone
+                </div>
+                {tileMarkers.map(marker => {
+                  const vDef = VEHICLE_DEFS.find(d => d.id === marker.vehicleTypeId);
+                  if (!vDef) return null;
+                  const rc = vDef.repairCost;
+                  const isSelected = retrievalMode === marker.id;
+                  const canAfford = rc
+                    ? (state.resources['scrap'] || 0) >= rc.scrap
+                      && (state.resources['materials'] || 0) >= rc.materials
+                      && (state.resources['fuel'] || 0) >= rc.fuel
+                    : true;
+                  return (
+                    <div
+                      key={marker.id}
+                      className="rounded border p-2.5 space-y-1.5 transition-all cursor-pointer"
+                      style={{
+                        borderColor: isSelected ? 'rgba(245,158,11,0.6)' : 'rgba(120,70,10,0.35)',
+                        backgroundColor: isSelected ? 'rgba(30,20,5,0.9)' : 'rgba(15,10,3,0.7)',
+                      }}
+                      onClick={() => setRetrievalMode(isSelected ? null : marker.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Car className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-xs font-mono font-bold text-amber-400">{vDef.name}</span>
+                          <span className="text-[10px] font-mono text-zinc-600">{vDef.description}</span>
+                        </div>
+                        <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                          isSelected
+                            ? 'border-amber-500/60 text-amber-400 bg-amber-900/30'
+                            : 'border-zinc-700/40 text-zinc-600'
+                        }`}>
+                          {isSelected ? 'Sélectionné' : 'Récupérer'}
+                        </span>
+                      </div>
+                      {rc && (
+                        <div className="flex flex-wrap gap-2 text-[10px] font-mono">
+                          <span className="flex items-center gap-1" style={{ color: (state.resources['scrap'] || 0) >= rc.scrap ? '#78716c' : '#f87171' }}>
+                            <Wrench className="w-2.5 h-2.5" /> {rc.scrap} ferraille
+                          </span>
+                          <span className="flex items-center gap-1" style={{ color: (state.resources['materials'] || 0) >= rc.materials ? '#78716c' : '#f87171' }}>
+                            <Wrench className="w-2.5 h-2.5" /> {rc.materials} matériaux
+                          </span>
+                          <span className="flex items-center gap-1" style={{ color: (state.resources['fuel'] || 0) >= rc.fuel ? '#78716c' : '#f87171' }}>
+                            <Wrench className="w-2.5 h-2.5" /> {rc.fuel} carburant
+                          </span>
+                          {!canAfford && (
+                            <span className="text-red-400 text-[9px]">Ressources insuffisantes</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {retrievalMode && (
+                  <p className="text-[10px] font-mono text-amber-700/60 italic">
+                    Mode récupération actif — sélectionnez des survivants et lancez l'expédition ci-dessous.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           <div>
             <div className="text-xs font-mono text-zinc-400 mb-2 flex items-center gap-1.5">
@@ -565,23 +666,55 @@ const ExpeditionMap: React.FC = () => {
             </div>
           )}
 
-          <button
-            onClick={handleLaunch}
-            disabled={selectedSurvivors.length === 0 || !hasEnoughFood}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold font-mono uppercase tracking-wider transition-all ${
-              selectedSurvivors.length > 0 && hasEnoughFood
-                ? 'bg-amber-600 hover:bg-amber-500 text-black shadow-lg shadow-amber-900/30'
-                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-            }`}
-          >
-            <Rocket className="w-4 h-4"/>
-            Lancer ({formatTime(selectedDur)})
-            {selectedSurvivors.length > 0 && (
-              <span className={`text-xs font-mono ml-1 ${hasEnoughFood ? 'opacity-70' : 'text-red-400 opacity-100'}`}>
-                — {foodCost} 🍎 {!hasEnoughFood && '(insuffisant)'}
-              </span>
-            )}
-          </button>
+          {(() => {
+            const retrievalMarker = retrievalMode ? (state.vehicleMarkers ?? []).find(m => m.id === retrievalMode) : null;
+            const retrievalVDef = retrievalMarker ? VEHICLE_DEFS.find(d => d.id === retrievalMarker.vehicleTypeId) : null;
+            const rc = retrievalVDef?.repairCost;
+            const canAffordRepair = !rc
+              || ((state.resources['scrap'] || 0) >= rc.scrap
+                && (state.resources['materials'] || 0) >= rc.materials
+                && (state.resources['fuel'] || 0) >= rc.fuel);
+            const canLaunch = selectedSurvivors.length > 0 && hasEnoughFood && canAffordRepair;
+            return (
+              <button
+                onClick={handleLaunch}
+                disabled={!canLaunch}
+                className={`w-full flex flex-col items-center justify-center gap-1 py-3 rounded-lg text-sm font-bold font-mono uppercase tracking-wider transition-all ${
+                  canLaunch
+                    ? retrievalMode
+                      ? 'bg-amber-700 hover:bg-amber-600 text-black shadow-lg shadow-amber-900/30'
+                      : 'bg-amber-600 hover:bg-amber-500 text-black shadow-lg shadow-amber-900/30'
+                    : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  {retrievalMode ? <Wrench className="w-4 h-4"/> : <Rocket className="w-4 h-4"/>}
+                  {retrievalMode ? `Récupérer ${retrievalVDef?.name ?? ''}` : `Lancer`}
+                  <span className="opacity-70">({formatTime(selectedDur)})</span>
+                </span>
+                {selectedSurvivors.length > 0 && (
+                  <span className="text-[10px] font-mono font-normal normal-case tracking-normal flex flex-wrap gap-x-2 justify-center opacity-80">
+                    <span className={hasEnoughFood ? '' : 'text-red-400 opacity-100'}>
+                      {foodCost} nourriture{!hasEnoughFood && ' (insuffisant)'}
+                    </span>
+                    {rc && (
+                      <>
+                        <span className={(state.resources['scrap'] || 0) >= rc.scrap ? '' : 'text-red-400 opacity-100'}>
+                          · {rc.scrap} ferraille
+                        </span>
+                        <span className={(state.resources['materials'] || 0) >= rc.materials ? '' : 'text-red-400 opacity-100'}>
+                          · {rc.materials} mat.
+                        </span>
+                        <span className={(state.resources['fuel'] || 0) >= rc.fuel ? '' : 'text-red-400 opacity-100'}>
+                          · {rc.fuel} carburant
+                        </span>
+                      </>
+                    )}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
         </div>
         );
       })()}
