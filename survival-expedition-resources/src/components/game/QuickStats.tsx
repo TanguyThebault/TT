@@ -2,7 +2,7 @@ import React from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { BUILDINGS, getMaxSurvivors, getStorageCapacity } from '@/data/gameData';
 import {
-  Users, Warehouse, Shield, MapPin, Hammer, Heart, Zap
+  Users, Warehouse, Shield, MapPin, Hammer, Heart
 } from 'lucide-react';
 
 const QuickStats: React.FC = () => {

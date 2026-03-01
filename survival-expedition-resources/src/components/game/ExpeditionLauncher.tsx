@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ZONES, ZONE_CATEGORIES, getExpeditionDurationMultiplier, getDangerReduction } from '@/data/gameData';
+import { ZONES, ZONE_CATEGORIES, getDangerReduction } from '@/data/gameData';
 import SurvivorCard from './SurvivorCard';
 import {
   MapPin, AlertTriangle, Clock, Lock, Rocket, ChevronRight,
@@ -35,8 +35,7 @@ const ExpeditionLauncher: React.FC = () => {
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [selectedSurvivors, setSelectedSurvivors] = useState<string[]>([]);
 
-  const garageLevel = state.buildings['garage'] || 0;
-  const durationMult = getExpeditionDurationMultiplier(garageLevel);
+  const durationMult = 1;
   const watchtowerLevel = state.buildings['watchtower'] || 0;
   const dangerReduction = getDangerReduction(watchtowerLevel);
 
@@ -96,7 +95,6 @@ const ExpeditionLauncher: React.FC = () => {
             <span className="flex items-center gap-1 text-blue-400">
               <Clock className="w-3 h-3" />
               Durée: {timeStr}
-              {garageLevel > 0 && <span className="text-green-400 ml-1">(-{Math.round((1 - durationMult) * 100)}%)</span>}
             </span>
           </div>
           <div className="mt-2 text-xs text-zinc-500 font-mono">

@@ -3,7 +3,7 @@ import { useGame } from '@/contexts/GameContext';
 import { ZONES } from '@/data/gameData';
 import ExpeditionTimer from './ExpeditionTimer';
 import {
-  MapPin, Users, AlertTriangle, Eye, Package
+  MapPin, Users, AlertTriangle
 } from 'lucide-react';
 
 const dangerLabels = ['', 'Faible', 'Modéré', 'Élevé', 'Très Élevé', 'Extrême'];
